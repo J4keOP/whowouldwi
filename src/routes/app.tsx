@@ -14,13 +14,13 @@ export const Route = createFileRoute("/app")({
   component: AppLayout,
 });
 
-const NAV = [
-  { to: "/app", label: "Battles", exact: true },
-  { to: "/app", label: "Rankings", disabled: true },
-  { to: "/app", label: "Daily Challenge", disabled: true },
-  { to: "/app", label: "Collection", disabled: true },
-  { to: "/app", label: "Profile", disabled: true },
-] as const;
+const NAV: Array<{ label: string; disabled?: boolean }> = [
+  { label: "Battles" },
+  { label: "Rankings", disabled: true },
+  { label: "Daily Challenge", disabled: true },
+  { label: "Collection", disabled: true },
+  { label: "Profile", disabled: true },
+];
 
 function AppLayout() {
   return (

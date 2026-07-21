@@ -9,38 +9,103 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppMatchupRouteImport } from './routes/app.matchup'
+import { Route as AppEngineTestRouteImport } from './routes/app.engine-test'
+import { Route as AppBattleRouteImport } from './routes/app.battle'
 
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMatchupRoute = AppMatchupRouteImport.update({
+  id: '/matchup',
+  path: '/matchup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEngineTestRoute = AppEngineTestRouteImport.update({
+  id: '/engine-test',
+  path: '/engine-test',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBattleRoute = AppBattleRouteImport.update({
+  id: '/battle',
+  path: '/battle',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/battle': typeof AppBattleRoute
+  '/app/engine-test': typeof AppEngineTestRoute
+  '/app/matchup': typeof AppMatchupRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app/battle': typeof AppBattleRoute
+  '/app/engine-test': typeof AppEngineTestRoute
+  '/app/matchup': typeof AppMatchupRoute
+  '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/app/battle': typeof AppBattleRoute
+  '/app/engine-test': typeof AppEngineTestRoute
+  '/app/matchup': typeof AppMatchupRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/app/battle'
+    | '/app/engine-test'
+    | '/app/matchup'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/app/battle' | '/app/engine-test' | '/app/matchup' | '/app'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/app/battle'
+    | '/app/engine-test'
+    | '/app/matchup'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +113,57 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/matchup': {
+      id: '/app/matchup'
+      path: '/matchup'
+      fullPath: '/app/matchup'
+      preLoaderRoute: typeof AppMatchupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/engine-test': {
+      id: '/app/engine-test'
+      path: '/engine-test'
+      fullPath: '/app/engine-test'
+      preLoaderRoute: typeof AppEngineTestRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/battle': {
+      id: '/app/battle'
+      path: '/battle'
+      fullPath: '/app/battle'
+      preLoaderRoute: typeof AppBattleRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppBattleRoute: typeof AppBattleRoute
+  AppEngineTestRoute: typeof AppEngineTestRoute
+  AppMatchupRoute: typeof AppMatchupRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppBattleRoute: AppBattleRoute,
+  AppEngineTestRoute: AppEngineTestRoute,
+  AppMatchupRoute: AppMatchupRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
