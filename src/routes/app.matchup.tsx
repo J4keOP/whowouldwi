@@ -154,7 +154,7 @@ function Matchup() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/70">
-                Matchup stat impact
+                Matchup-deciding stats
               </h3>
               <p className="mt-1 text-xs text-white/40">
                 Ranked by how likely each stat is to decide this exact fight.
