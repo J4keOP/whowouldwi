@@ -158,7 +158,7 @@ function Matchup() {
                   Matchup-deciding stats
                 </h3>
                 <span className="rounded-full border border-amber-200/15 bg-amber-200/[0.06] px-2.5 py-1 text-[0.55rem] uppercase tracking-[0.2em] text-amber-100/60">
-                  Dynamic impact model
+                  V3 · Dynamic impact model
                 </span>
               </div>
               <p className="mt-1 text-xs text-white/40">
