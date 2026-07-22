@@ -27,10 +27,16 @@ export function StatBar({
         ? { left: "50%", width: `${extent}%`, background: accentB }
         : { left: "48.5%", width: "3%", background: "#94a3b8" };
   const isPrimary = emphasis === "primary";
+  const impactLabel =
+    impact.probabilityImpact < 0.5
+      ? "<1 estimated odds pt"
+      : `~+${impact.probabilityImpact.toFixed(1)} odds pts`;
   const takeaway =
     impact.edge === "EVEN"
       ? `${impact.label} is the fight's biggest swing factor, but neither fighter owns a clear advantage.`
-      : `${winnerName}'s ${impact.label} is the strongest stat-based reason they can win this matchup.`;
+      : impact.role === "favorite-driver"
+        ? `${winnerName}'s ${impact.label} is the strongest measured reason they are favored in this matchup.`
+        : `${winnerName}'s ${impact.label} is their strongest counterfactor and clearest path to an upset.`;
 
   return (
     <article
@@ -75,7 +81,14 @@ export function StatBar({
           <div>
             {isPrimary && (
               <div className="mb-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-amber-200/80">
-                Primary battle-deciding factor
+                {impact.role === "favorite-driver"
+                  ? `Primary reason ${winnerName} is favored`
+                  : "Primary battle-deciding factor"}
+              </div>
+            )}
+            {!isPrimary && impact.role === "counterfactor" && (
+              <div className="mb-1 text-[0.55rem] font-bold uppercase tracking-[0.2em] text-violet-200/60">
+                Path to an upset
               </div>
             )}
             <h4
@@ -90,17 +103,26 @@ export function StatBar({
             <ImportanceStars impact={impact} prominent={isPrimary} />
           </div>
         </div>
-        <div
-          className={`rounded-full border font-semibold uppercase tracking-widest ${
-            isPrimary ? "px-4 py-2 text-xs" : "px-3 py-1 text-[0.6rem]"
-          }`}
-          style={{
-            color: winnerAccent,
-            borderColor: `${winnerAccent}45`,
-            background: `${winnerAccent}12`,
-          }}
-        >
-          {impact.edge === "EVEN" ? "No clear edge" : `${winnerName} +${impact.gap}`}
+        <div className="flex flex-wrap justify-end gap-2">
+          <div
+            className={`rounded-full border font-semibold uppercase tracking-widest ${
+              isPrimary ? "px-4 py-2 text-xs" : "px-3 py-1 text-[0.6rem]"
+            }`}
+            style={{
+              color: winnerAccent,
+              borderColor: `${winnerAccent}45`,
+              background: `${winnerAccent}12`,
+            }}
+          >
+            {impact.edge === "EVEN" ? "No clear edge" : `${winnerName} +${impact.gap}`}
+          </div>
+          <div
+            className={`rounded-full border border-amber-200/20 bg-amber-200/[0.06] font-semibold uppercase tracking-wider text-amber-100/70 ${
+              isPrimary ? "px-4 py-2 text-xs" : "px-3 py-1 text-[0.6rem]"
+            }`}
+          >
+            {impactLabel}
+          </div>
         </div>
       </div>
 
@@ -188,6 +210,11 @@ export function SecondaryStat({
       <div className="mt-2 text-[0.65rem] uppercase tracking-wider" style={{ color: winnerAccent }}>
         {impact.edge === "EVEN" ? "No clear edge" : `${winnerName} edge · +${impact.gap}`}
       </div>
+      {impact.probabilityImpact > 0.5 && (
+        <div className="mt-1 text-[0.58rem] uppercase tracking-wider text-amber-100/35">
+          ~+{impact.probabilityImpact.toFixed(1)} win-odds pts
+        </div>
+      )}
     </div>
   );
 }

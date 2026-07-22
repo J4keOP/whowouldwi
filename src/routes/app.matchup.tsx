@@ -47,7 +47,10 @@ function Matchup() {
     () => (a && b ? analyzeMatchup(a, b, { context }) : null),
     [a, b, context],
   );
-  const statImpact = useMemo(() => (a && b ? rankStatImpact(a, b, context) : []), [a, b, context]);
+  const statImpact = useMemo(
+    () => (a && b && analysis ? rankStatImpact(a, b, context, analysis.favorite) : []),
+    [a, b, context, analysis],
+  );
 
   if (!a || !b || !analysis) {
     return (
@@ -162,7 +165,8 @@ function Matchup() {
                 </span>
               </div>
               <p className="mt-1 text-xs text-white/40">
-                Ranked by how likely each stat is to decide this exact fight.
+                Each stat edge is neutralized and the fight is rerun to measure how far the odds
+                move.
               </p>
             </div>
             <div className="flex gap-4 text-xs">
@@ -218,9 +222,9 @@ function Matchup() {
           </div>
 
           <div className="mt-5 rounded-lg border border-[#7ea6ff]/10 bg-[#7ea6ff]/[0.045] px-4 py-3 text-xs leading-relaxed text-white/40">
-            Importance changes with the fighters, their usable attacks, the arena, time of day and
-            starting distance. Stars measure matchup relevance; the center meter shows who owns the
-            actual edge.
+            #1 always explains the predicted favorite. Stars measure estimated win-odds impact; the
+            advantage number shows the context-adjusted stat gap. An underdog factor is labeled as a
+            possible upset path instead of being presented as the reason they are favored.
           </div>
         </div>
       </section>

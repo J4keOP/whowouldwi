@@ -1,4 +1,5 @@
 import { DISTANCE_OPTIONS, getArena, getEnvironmentEffects } from "./arenas";
+import { analyzeMatchup } from "./engine";
 import type { BattleContext, Character, CombatAction, StatKey } from "./types";
 
 const STAT_KEYS: StatKey[] = [
@@ -47,6 +48,9 @@ const BASE_RELEVANCE: Record<StatKey, number> = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const COUNTERFACTUAL_SAMPLES = 96;
+
+export type FavoriteSide = "A" | "B" | "EVEN";
 
 export type StatImpactLevel = 1 | 2 | 3 | 4 | 5;
 
@@ -61,6 +65,8 @@ export interface StatImpact {
   contextDeltaB: number;
   edge: "A" | "B" | "EVEN";
   gap: number;
+  probabilityImpact: number;
+  role: "favorite-driver" | "counterfactor" | "neutral";
   score: number;
   importance: StatImpactLevel;
   importanceLabel: "Minor" | "Situational" | "Meaningful" | "Major" | "Critical";
@@ -193,7 +199,36 @@ function explainStat(
   }
 }
 
-export function rankStatImpact(a: Character, b: Character, context: BattleContext): StatImpact[] {
+function orderByFavorite(
+  items: Array<Omit<StatImpact, "importance" | "importanceLabel">>,
+  favorite: FavoriteSide,
+) {
+  const sorted = [...items].sort((left, right) => right.score - left.score || right.gap - left.gap);
+  if (favorite === "EVEN") return sorted;
+
+  const favoriteFactors = sorted.filter((item) => item.edge === favorite);
+  if (favoriteFactors.length === 0) return sorted;
+
+  const primary = favoriteFactors[0];
+  const topThree = [primary, ...sorted.filter((item) => item.key !== primary.key).slice(0, 2)];
+
+  // The first card must explain the favorite, and normally two of the first
+  // three should explain the favorite rather than presenting a contradictory
+  // wall of underdog advantages.
+  if (topThree.filter((item) => item.edge === favorite).length < 2 && favoriteFactors.length > 1) {
+    topThree[2] = favoriteFactors[1];
+  }
+
+  const topKeys = new Set(topThree.map((item) => item.key));
+  return [...topThree, ...sorted.filter((item) => !topKeys.has(item.key))];
+}
+
+export function rankStatImpact(
+  a: Character,
+  b: Character,
+  context: BattleContext,
+  favorite: FavoriteSide,
+): StatImpact[] {
   const effectsA = getEnvironmentEffects(a, context);
   const effectsB = getEnvironmentEffects(b, context);
   const profileA = actionRelevance(a, context);
@@ -234,8 +269,6 @@ export function rankStatImpact(a: Character, b: Character, context: BattleContex
         Math.max(0, effectsA.healingMultiplier + effectsB.healingMultiplier - 2) * 0.24;
     }
 
-    const contextSwing = Math.abs(contextDeltaA - contextDeltaB) / 30;
-    const score = clamp(relevance * (0.52 + gap / 115) + contextSwing * 0.18, 0.02, 1);
     return {
       key,
       label: STAT_LABELS[key],
@@ -247,13 +280,76 @@ export function rankStatImpact(a: Character, b: Character, context: BattleContex
       contextDeltaB,
       edge: gap <= 2 ? ("EVEN" as const) : valueA > valueB ? ("A" as const) : ("B" as const),
       gap: Math.round(gap),
-      score,
+      relevance,
       detail: explainStat(key, a, b, context, psychicThreat, controlThreat),
     };
-  }).sort((left, right) => right.score - left.score);
+  });
 
-  const maxScore = raw[0]?.score ?? 1;
-  return raw.map((item, index) => {
+  // Use paired seeds for the baseline and each neutralized-stat rerun. This
+  // makes the measured change much less noisy than comparing unrelated battle
+  // samples and answers the useful question: "How much do the odds move if this
+  // fighter no longer owns this particular edge?"
+  const baselineA = analyzeMatchup(a, b, {
+    context,
+    samples: COUNTERFACTUAL_SAMPLES,
+    bypassCache: true,
+  }).probA;
+
+  const measured = raw.map((item) => {
+    if (item.edge === "EVEN") {
+      return {
+        ...item,
+        probabilityImpact: 0,
+        role: "neutral" as const,
+        score: clamp((item.gap / 35) * item.relevance, 0.01, 1) * 0.22,
+      };
+    }
+
+    const sharedEffectiveValue = (item.valueA + item.valueB) / 2;
+    const neutralA: Character = {
+      ...a,
+      stats: {
+        ...a.stats,
+        [item.key]: clamp(sharedEffectiveValue - item.contextDeltaA, 0, 125),
+      },
+    };
+    const neutralB: Character = {
+      ...b,
+      stats: {
+        ...b.stats,
+        [item.key]: clamp(sharedEffectiveValue - item.contextDeltaB, 0, 125),
+      },
+    };
+    const neutralProbA = analyzeMatchup(neutralA, neutralB, {
+      context,
+      samples: COUNTERFACTUAL_SAMPLES,
+      bypassCache: true,
+    }).probA;
+    const holderImpact = item.edge === "A" ? baselineA - neutralProbA : neutralProbA - baselineA;
+    const probabilityImpact = Math.max(0, holderImpact * 100);
+    const disparityEvidence = clamp((item.gap / 35) * clamp(item.relevance, 0.12, 1.15), 0, 1);
+    const probabilityEvidence = clamp(probabilityImpact / 10, 0, 1);
+    const role: StatImpact["role"] =
+      favorite === "EVEN"
+        ? "neutral"
+        : item.edge === favorite
+          ? "favorite-driver"
+          : "counterfactor";
+
+    return {
+      ...item,
+      probabilityImpact,
+      role,
+      // Probability movement is the main signal. Disparity × relevance keeps
+      // the short diagnostic reruns stable when two factors produce a near tie.
+      score: probabilityEvidence * 0.78 + disparityEvidence * 0.22,
+    };
+  });
+
+  const ordered = orderByFavorite(measured, favorite);
+
+  const maxScore = ordered[0]?.score ?? 1;
+  return ordered.map((item, index) => {
     const displayScore = item.score * 0.55 + (item.score / maxScore) * 0.45;
     const calculatedImportance = clamp(Math.ceil(displayScore * 5), 1, 5);
     // Give every matchup a clear reading order. Only its strongest factor can be

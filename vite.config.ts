@@ -13,7 +13,7 @@ export default defineConfig({
     // Bump this whenever Lovable's preview hydrates a newly rendered route with
     // an older client bundle. The hierarchy redesign changes the component
     // shape substantially, so it needs a fresh client module graph.
-    cacheDir: "node_modules/.vite-lovable-v3-hierarchy-20260721",
+    cacheDir: "node_modules/.vite-lovable-v3-impact-20260721",
     optimizeDeps: {
       force: true,
     },
