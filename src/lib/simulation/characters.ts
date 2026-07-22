@@ -3,6 +3,14 @@
 // is represented by at least one typed combat action.
 
 import type { Character, CombatAction, DefenseProfile, Stats } from "./types";
+import {
+  BATMAN_TECHNIQUES,
+  DARTH_VADER_TECHNIQUES,
+  DOCTOR_DOOM_TECHNIQUES,
+  GODZILLA_TECHNIQUES,
+  HULK_TECHNIQUES,
+  SPIDER_MAN_TECHNIQUES,
+} from "./action-library";
 
 const s = (partial: Partial<Stats>): Stats => ({
   strength: 50,
@@ -212,6 +220,7 @@ export const CHARACTERS: Character[] = [
         },
       }),
     ],
+    techniques: DOCTOR_DOOM_TECHNIQUES,
     victoryPaths: [
       {
         id: "doom-mystic",
@@ -399,6 +408,7 @@ export const CHARACTERS: Character[] = [
         },
       }),
     ],
+    techniques: DARTH_VADER_TECHNIQUES,
     victoryPaths: [
       {
         id: "vader-choke",
@@ -567,6 +577,7 @@ export const CHARACTERS: Character[] = [
         text: { hit: "Spider-sense fires and Spider-Man swings out of the kill zone." },
       }),
     ],
+    techniques: SPIDER_MAN_TECHNIQUES,
     victoryPaths: [
       {
         id: "spidey-outlast",
@@ -736,6 +747,7 @@ export const CHARACTERS: Character[] = [
         text: { hit: "Hulk's rage spikes; wounds close as his stance becomes heavier." },
       }),
     ],
+    techniques: HULK_TECHNIQUES,
     victoryPaths: [
       {
         id: "hulk-smash-path",
@@ -946,6 +958,7 @@ export const CHARACTERS: Character[] = [
         },
       }),
     ],
+    techniques: BATMAN_TECHNIQUES,
     victoryPaths: [
       {
         id: "batman-systems",
@@ -971,6 +984,15 @@ export const CHARACTERS: Character[] = [
           "Lands a specialized chemical dose and survives long enough for it to take effect.",
         actionIds: ["batman-gas"],
         method: "incapacitation",
+      },
+      {
+        id: "batman-precision-finish",
+        name: "Precision Incapacitation",
+        tags: ["martial-arts", "precision"],
+        description:
+          "Converts a carefully created opening into a nonlethal strike sequence that ends resistance.",
+        actionIds: ["batman-takedown"],
+        method: "knockout",
       },
     ],
   },
@@ -1132,6 +1154,7 @@ export const CHARACTERS: Character[] = [
         text: { hit: "Godzilla's damaged tissue knits together beneath glowing dorsal plates." },
       }),
     ],
+    techniques: GODZILLA_TECHNIQUES,
     victoryPaths: [
       {
         id: "godzilla-breath",

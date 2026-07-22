@@ -10,6 +10,7 @@ import type {
   BattleContext,
   Character,
   CombatAction,
+  CombatTechnique,
   DamageType,
   RangeBand,
   VictoryMethod,
@@ -29,6 +30,9 @@ export interface CombatantState {
   rage: number;
   cooldowns: Record<string, number>;
   lastActionId?: string;
+  actionHistory: string[];
+  actionUseCounts: Record<string, number>;
+  techniqueHistory: string[];
   successfulActions: string[];
   failedActions: string[];
 }
@@ -71,6 +75,9 @@ export interface CombatOutcome {
 
 interface Resolution {
   text: string;
+  techniqueId: string;
+  techniqueName: string;
+  techniqueFinish?: CombatAction["text"]["finish"];
   hit: boolean;
   damage: number;
   control: number;
@@ -88,6 +95,33 @@ interface LullResult {
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const logistic = (x: number) => 1 / (1 + Math.exp(-x));
 const replaceTarget = (text: string, target: Character) => text.replaceAll("{target}", target.name);
+
+function techniqueHash(value: string): number {
+  let hash = 2166136261 >>> 0;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function pickTechnique(state: CombatantState, action: CombatAction): CombatTechnique {
+  const base: CombatTechnique = {
+    id: action.id,
+    name: action.name,
+    actionId: action.id,
+    text: action.text,
+  };
+  const variants = state.character.techniques?.filter((item) => item.actionId === action.id) ?? [];
+  const all = [base, ...variants];
+  const fresh = all.filter((item) => !state.techniqueHistory.includes(item.id));
+  const candidates = fresh.length > 0 ? fresh : all;
+  const useCount = state.actionUseCounts[action.id] ?? 1;
+  const selected = candidates[(techniqueHash(action.id) + useCount * 7) % candidates.length];
+  state.techniqueHistory.push(selected.id);
+  if (state.techniqueHistory.length > 10) state.techniqueHistory.shift();
+  return selected;
+}
 
 function hashNoise(seed: number, round: number, side: "A" | "B") {
   let x = (seed ^ (round * 0x9e3779b9) ^ (side === "A" ? 0xa341316c : 0xc8013ea4)) >>> 0;
@@ -144,7 +178,10 @@ function expectedDamage(
       : action.damageType === "psychic"
         ? Math.max(effectiveStat(attacker, "magic"), effectiveStat(attacker, "battleIQ") * 0.75)
         : action.tags.includes("technology") || action.tags.includes("gadget")
-          ? Math.max(effectiveStat(attacker, "technology"), effectiveStat(attacker, "strength") * 0.55)
+          ? Math.max(
+              effectiveStat(attacker, "technology"),
+              effectiveStat(attacker, "strength") * 0.55,
+            )
           : effectiveStat(attacker, "strength");
 
   const penetration = clamp(action.penetration ?? 0, 0, 0.95);
@@ -157,7 +194,8 @@ function expectedDamage(
   const guard = clamp(1 - defender.guard / 150, 0.35, 1);
   const offenseScale = 0.46 + offense / 105;
   const environment =
-    attacker.effects.damageMultiplier * actionEnvironmentMultiplier(action, attacker.character, context);
+    attacker.effects.damageMultiplier *
+    actionEnvironmentMultiplier(action, attacker.character, context);
   return action.power * offenseScale * mitigated * scale * guard * environment * 0.34;
 }
 
@@ -262,8 +300,24 @@ function actionUtility(
   if (action.canBattlefieldRemove && opponent.control > 55) utility += 22;
   if (opponent.character.defense.criticalSystems && action.systemDamage) utility += 14;
   if (action.tags.includes("area") && opponent.character.defense.evasion >= 75) utility += 15;
-  if (action.tags.includes("anti-evasion") && opponent.character.defense.evasion >= 70) utility += 22;
+  if (action.tags.includes("anti-evasion") && opponent.character.defense.evasion >= 70)
+    utility += 22;
   if (action.tags.includes("upset-path")) utility += effectiveStat(state, "battleIQ") / 18;
+
+  // A fighter should adapt instead of selecting the same mathematically optimal
+  // move every exchange. Finishers remain available when their requirements are
+  // met, but ordinary actions receive a strong recency and usage penalty.
+  const previousIndex = state.actionHistory.lastIndexOf(action.id);
+  if (previousIndex >= 0 && action.kind !== "finisher") {
+    const turnsSinceUse = state.actionHistory.length - previousIndex;
+    utility -= turnsSinceUse === 1 ? 8 : turnsSinceUse === 2 ? 4 : turnsSinceUse <= 4 ? 2 : 0;
+  }
+  const previousAction = state.character.actions.find(
+    (candidate) => candidate.id === state.actionHistory[state.actionHistory.length - 1],
+  );
+  if (previousAction?.kind === "defense" && action.kind === "defense") utility -= 5;
+  if (previousAction?.kind === "mobility" && action.kind === "mobility") utility -= 4;
+  utility -= Math.max(0, (state.actionUseCounts[action.id] ?? 0) - 1) * 4;
 
   utility -= penalty * 70;
   utility -= action.staminaCost * (state.stamina < 25 ? 0.8 : 0.16);
@@ -278,13 +332,18 @@ function pickAction(
   context: BattleContext,
   rng: ReturnType<typeof createRng>,
 ): CombatAction {
-  const candidates = state.character.actions.filter((a) => actionAvailable(state, opponent, a, context));
+  const candidates = state.character.actions.filter((a) =>
+    actionAvailable(state, opponent, a, context),
+  );
   if (candidates.length === 0) return state.character.actions[0];
   const scored = candidates
-    .map((a) => ({ action: a, score: actionUtility(state, opponent, a, distance, context, rng.next()) }))
+    .map((a) => ({
+      action: a,
+      score: actionUtility(state, opponent, a, distance, context, rng.next()),
+    }))
     .sort((x, y) => y.score - x.score);
 
-  const shortlist = scored.slice(0, Math.min(3, scored.length));
+  const shortlist = scored.slice(0, Math.min(5, scored.length));
   const weights = shortlist.map((x, i) =>
     Math.max(0.1, x.score - shortlist[shortlist.length - 1].score + (3 - i) * 3),
   );
@@ -340,6 +399,10 @@ function resolveAction(
 ): Resolution {
   attacker.stamina = clamp(attacker.stamina - action.staminaCost, 0, 100);
   attacker.lastActionId = action.id;
+  attacker.actionHistory.push(action.id);
+  if (attacker.actionHistory.length > 6) attacker.actionHistory.shift();
+  attacker.actionUseCounts[action.id] = (attacker.actionUseCounts[action.id] ?? 0) + 1;
+  const technique = pickTechnique(attacker, action);
   if (action.cooldown) attacker.cooldowns[action.id] = action.cooldown;
 
   if (action.kind === "defense") {
@@ -351,7 +414,10 @@ function resolveAction(
     );
     attacker.successfulActions.push(action.id);
     return {
-      text: action.text.hit,
+      text: replaceTarget(technique.text.hit, defender.character),
+      techniqueId: technique.id,
+      techniqueName: technique.name,
+      techniqueFinish: technique.text.finish,
       hit: true,
       damage: 0,
       control: 0,
@@ -364,7 +430,10 @@ function resolveAction(
   if (action.kind === "mobility" && !action.control) {
     attacker.successfulActions.push(action.id);
     return {
-      text: action.text.hit,
+      text: replaceTarget(technique.text.hit, defender.character),
+      techniqueId: technique.id,
+      techniqueName: technique.name,
+      techniqueFinish: technique.text.finish,
       hit: true,
       damage: 0,
       control: 0,
@@ -380,9 +449,14 @@ function resolveAction(
     attacker.failedActions.push(action.id);
     return {
       text: replaceTarget(
-        action.text.miss ?? `${attacker.character.name}'s ${action.name} misses {target}.`,
+        technique.text.miss ??
+          action.text.miss ??
+          `${attacker.character.name}'s ${technique.name} misses {target}.`,
         defender.character,
       ),
+      techniqueId: technique.id,
+      techniqueName: technique.name,
+      techniqueFinish: technique.text.finish,
       hit: false,
       damage: 0,
       control: 0,
@@ -416,7 +490,8 @@ function resolveAction(
     damage *= clamp(1 - chemicalRes, 0.02, 1);
   }
   if (action.tags.includes("upset-path")) {
-    const iqEdge = (effectiveStat(attacker, "battleIQ") - effectiveStat(defender, "battleIQ")) / 200;
+    const iqEdge =
+      (effectiveStat(attacker, "battleIQ") - effectiveStat(defender, "battleIQ")) / 200;
     const jackpot = rng.next() < clamp(0.025 + iqEdge * 0.04, 0.004, 0.065);
     if (jackpot) {
       control += 38;
@@ -459,19 +534,23 @@ function resolveAction(
   const removalSpaceMultiplier = 0.7 + arena.sizeScale * 0.22;
   const battlefieldRemoval = Boolean(
     action.canBattlefieldRemove &&
-      ((defender.control >= 90 &&
-        rng.next() <
-          clamp(
-            (0.08 + effectiveStat(attacker, "battleIQ") / 260 - defender.character.scale * 0.025) *
-              removalSpaceMultiplier,
-            0.01,
-            0.38,
-          )) ||
-        (action.tags.includes("upset-path") && rng.next() < engineeredUpsetChance * removalSpaceMultiplier)),
+    ((defender.control >= 90 &&
+      rng.next() <
+        clamp(
+          (0.08 + effectiveStat(attacker, "battleIQ") / 260 - defender.character.scale * 0.025) *
+            removalSpaceMultiplier,
+          0.01,
+          0.38,
+        )) ||
+      (action.tags.includes("upset-path") &&
+        rng.next() < engineeredUpsetChance * removalSpaceMultiplier)),
   );
 
   return {
-    text: replaceTarget(action.text.hit, defender.character),
+    text: replaceTarget(technique.text.hit, defender.character),
+    techniqueId: technique.id,
+    techniqueName: technique.name,
+    techniqueFinish: technique.text.finish,
     hit: true,
     damage,
     control,
@@ -540,11 +619,7 @@ function liveProbabilityA(a: CombatantState, b: CombatantState, baseProbA: numbe
   return clamp(logistic(baseLogit + health + stamina + control + systems), 0.005, 0.995);
 }
 
-function makeState(
-  side: "A" | "B",
-  character: Character,
-  context: BattleContext,
-): CombatantState {
+function makeState(side: "A" | "B", character: Character, context: BattleContext): CombatantState {
   return {
     side,
     character,
@@ -556,6 +631,9 @@ function makeState(
     guard: 0,
     rage: 0,
     cooldowns: {},
+    actionHistory: [],
+    actionUseCounts: {},
+    techniqueHistory: [],
     successfulActions: [],
     failedActions: [],
   };
@@ -568,14 +646,50 @@ function victoryAfterAction(
   resolution: Resolution,
 ): VictoryMethod | null {
   if (resolution.battlefieldRemoval) return "battlefield-removal";
-  if (defender.character.defense.criticalSystems && defender.systemIntegrity <= 0) {
+  const canDirectlyFinish = action.kind !== "defense" && action.kind !== "mobility";
+  if (
+    canDirectlyFinish &&
+    resolution.systemDamage > 0 &&
+    defender.character.defense.criticalSystems &&
+    defender.systemIntegrity <= 0
+  ) {
     return "incapacitation";
   }
-  if (defender.health <= 0) return "knockout";
-  if (action.canContain && defender.control >= 100) return "containment";
-  if (defender.control >= 115) return "incapacitation";
-  if (defender.stamina <= 0 && defender.health < 28) return "exhaustion";
+  if (canDirectlyFinish && resolution.damage > 0 && defender.health <= 0) return "knockout";
+  if (resolution.control > 0 && action.canContain && defender.control >= 100) return "containment";
+  if (resolution.control > 0 && canDirectlyFinish && defender.control >= 115)
+    return "incapacitation";
   return null;
+}
+
+function victoryExplanation(
+  winner: CombatantState,
+  loser: CombatantState,
+  method: VictoryMethod,
+  action: CombatAction | undefined,
+  resolution: Resolution | undefined,
+  arena: Arena,
+  rounds: number,
+): string {
+  const authored = resolution?.techniqueFinish?.[method] ?? action?.text.finish?.[method];
+  if (authored) {
+    return `VICTORY — ${replaceTarget(authored, loser.character)}`;
+  }
+
+  const actionLead = action
+    ? `${winner.character.name}'s ${resolution?.techniqueName ?? action.name}`
+    : `After ${rounds} rounds, ${winner.character.name}'s accumulated advantage`;
+  const explanation =
+    method === "containment"
+      ? `${actionLead} completes the restraint: ${loser.character.name} is immobilized and can no longer fight or escape.`
+      : method === "battlefield-removal"
+        ? `${actionLead} forces ${loser.character.name} out of the active battlefield in ${arena.shortName}; ${winner.character.name} remains in bounds and secures the result.`
+        : method === "incapacitation"
+          ? `${actionLead} shuts down ${loser.character.name}'s ability to defend or continue. ${winner.character.name} wins by incapacitation.`
+          : method === "exhaustion"
+            ? `${actionLead} leaves ${loser.character.name} unable to sustain effective resistance; ${winner.character.name} remains operational and wins the attritional fight.`
+            : `${actionLead} delivers the decisive impact. ${loser.character.name} is knocked out and cannot continue.`;
+  return `VICTORY — ${explanation}`;
 }
 
 function stateScore(state: CombatantState): number {
@@ -706,6 +820,7 @@ export function runCombat(
   let finalActionId: string | undefined;
   let method: VictoryMethod | null = null;
   let winnerSide: "A" | "B" | null = null;
+  let finalResolution: Resolution | undefined;
   let rounds = 0;
   let activeCombatSeconds = 0;
   let totalElapsedSeconds = 0;
@@ -798,6 +913,7 @@ export function runCombat(
         winnerSide = attacker.side;
         method = wonBy;
         finalActionId = action.id;
+        finalResolution = resolution;
         break;
       }
     }
@@ -828,7 +944,8 @@ export function runCombat(
   if (!winnerSide) {
     const scoreA = stateScore(a);
     const scoreB = stateScore(b);
-    winnerSide = Math.abs(scoreA - scoreB) < 2 ? (rng.next() < 0.5 ? "A" : "B") : scoreA > scoreB ? "A" : "B";
+    winnerSide =
+      Math.abs(scoreA - scoreB) < 2 ? (rng.next() < 0.5 ? "A" : "B") : scoreA > scoreB ? "A" : "B";
     method = "exhaustion";
   }
 
@@ -837,16 +954,16 @@ export function runCombat(
   const loser = winnerSide === "A" ? b : a;
 
   if (options.recordTimeline) {
-    const finishText =
-      method === "containment"
-        ? `${winner.character.name} completes a valid containment condition. ${loser.character.name} can no longer continue the fight.`
-        : method === "battlefield-removal"
-          ? `${winner.character.name} removes ${loser.character.name} from the battlefield long enough to secure the result.`
-          : method === "incapacitation"
-            ? `${loser.character.name}'s ability to fight collapses. ${winner.character.name} secures the incapacitation.`
-            : method === "exhaustion"
-              ? `${loser.character.name} can no longer sustain the fight. ${winner.character.name} remains operational.`
-              : `${winner.character.name} lands enough decisive damage to end the battle.`;
+    const decisiveAction = winner.character.actions.find((x) => x.id === finalActionId);
+    const finishText = victoryExplanation(
+      winner,
+      loser,
+      method ?? "incapacitation",
+      decisiveAction,
+      finalResolution,
+      arena,
+      rounds,
+    );
     pushEvent(rounds, winnerSide, finishText, 1.8, finalActionId);
   }
 
@@ -866,9 +983,10 @@ export function runCombat(
     events,
     stateA: a,
     stateB: b,
-    decisiveSuccess: decisiveAction
-      ? `${decisiveAction.name} created the actual victory condition in ${arena.shortName}.`
-      : `${winner.character.name} preserved more health, stamina and control through the final exchange.`,
+    decisiveSuccess:
+      decisiveAction && finalResolution
+        ? `${finalResolution.techniqueName} created the actual ${method} victory condition in ${arena.shortName}.`
+        : `${winner.character.name} preserved more health, stamina and control through the final exchange.`,
     decisiveFailure: failedAction
       ? `${failedAction.name} failed to create a sustainable win condition against ${winner.character.name}'s defenses and the conditions in ${arena.shortName}.`
       : `${loser.character.name} could not convert their available actions into a valid finish.`,
