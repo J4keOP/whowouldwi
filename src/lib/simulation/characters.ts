@@ -46,6 +46,12 @@ export const CHARACTERS: Character[] = [
     version: "Earth-616 standard armor",
     universe: "Marvel",
     accent: "#10b981",
+    visual: {
+      silhouette: "armored-mage",
+      secondary: "#6b7280",
+      highlight: "#d1fae5",
+      nameStyle: "regal",
+    },
     description:
       "Sorcerer-scientist monarch combining elite armor, layered force fields and high-order magic.",
     scale: 3,
@@ -255,6 +261,12 @@ export const CHARACTERS: Character[] = [
     version: "Canon, peak suit-era",
     universe: "Star Wars",
     accent: "#ef4444",
+    visual: {
+      silhouette: "space-knight",
+      secondary: "#18181b",
+      highlight: "#fecaca",
+      nameStyle: "industrial",
+    },
     description:
       "A heavily armored Sith Lord with precognition, telekinesis and ruthless lightsaber efficiency.",
     scale: 2,
@@ -442,6 +454,12 @@ export const CHARACTERS: Character[] = [
     version: "Earth-616, standard suit",
     universe: "Marvel",
     accent: "#e11d48",
+    visual: {
+      silhouette: "web-hero",
+      secondary: "#1d4ed8",
+      highlight: "#f8fafc",
+      nameStyle: "kinetic",
+    },
     description:
       "An agile enhanced hero whose spider-sense, webs and improvisation let him survive far above his weight class.",
     scale: 2,
@@ -612,6 +630,12 @@ export const CHARACTERS: Character[] = [
     version: "Earth-616, standard savage Hulk",
     universe: "Marvel",
     accent: "#7ee35a",
+    visual: {
+      silhouette: "gamma-titan",
+      secondary: "#4c1d95",
+      highlight: "#dcfce7",
+      nameStyle: "massive",
+    },
     description:
       "A regenerating gamma titan whose strength and resistance climb as the fight becomes more violent.",
     scale: 4,
@@ -781,6 +805,12 @@ export const CHARACTERS: Character[] = [
     version: "Prime Earth, standard patrol gear",
     universe: "DC",
     accent: "#60a5fa",
+    visual: {
+      silhouette: "night-vigilante",
+      secondary: "#111827",
+      highlight: "#dbeafe",
+      nameStyle: "noir",
+    },
     description:
       "A peak-human tactician with elite stealth and gadgets. Default simulations grant no advance preparation.",
     scale: 1,
@@ -1002,6 +1032,12 @@ export const CHARACTERS: Character[] = [
     version: "Heisei-era composite baseline",
     universe: "Toho",
     accent: "#a78bfa",
+    visual: {
+      silhouette: "atomic-kaiju",
+      secondary: "#0f766e",
+      highlight: "#e9d5ff",
+      nameStyle: "primal",
+    },
     description:
       "A skyscraper-scale kaiju with atomic ranged offense, extreme durability and rapid regeneration.",
     scale: 5,
