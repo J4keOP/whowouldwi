@@ -210,17 +210,18 @@ function orderByFavorite(
   if (favoriteFactors.length === 0) return sorted;
 
   const primary = favoriteFactors[0];
-  const topThree = [primary, ...sorted.filter((item) => item.key !== primary.key).slice(0, 2)];
+  const underdog = favorite === "A" ? "B" : "A";
+  const upsetWinCondition = sorted.find((item) => item.edge === underdog);
+  const fallback = sorted.find((item) => item.key !== primary.key);
+  const featured = [primary, upsetWinCondition ?? fallback].filter(
+    (item): item is (typeof sorted)[number] => Boolean(item),
+  );
 
-  // The first card must explain the favorite, and normally two of the first
-  // three should explain the favorite rather than presenting a contradictory
-  // wall of underdog advantages.
-  if (topThree.filter((item) => item.edge === favorite).length < 2 && favoriteFactors.length > 1) {
-    topThree[2] = favoriteFactors[1];
-  }
-
-  const topKeys = new Set(topThree.map((item) => item.key));
-  return [...topThree, ...sorted.filter((item) => !topKeys.has(item.key))];
+  // The two featured cards have fixed jobs: explain why the favorite leads,
+  // then show the underdog's strongest measurable route to reversing it.
+  // Everything else stays score-ranked in the quieter secondary grid.
+  const featuredKeys = new Set(featured.map((item) => item.key));
+  return [...featured, ...sorted.filter((item) => !featuredKeys.has(item.key))];
 }
 
 export function rankStatImpact(
@@ -352,8 +353,8 @@ export function rankStatImpact(
   return ordered.map((item, index) => {
     const displayScore = item.score * 0.55 + (item.score / maxScore) * 0.45;
     const calculatedImportance = clamp(Math.ceil(displayScore * 5), 1, 5);
-    // Give every matchup a clear reading order. Only its strongest factor can be
-    // Critical; supporting factors and the secondary grid step down visibly.
+    // Give every matchup a clear reading order. Only the favorite's main reason
+    // can be Critical; the upset condition and secondary grid step down visibly.
     const importance = (
       index === 0
         ? 5

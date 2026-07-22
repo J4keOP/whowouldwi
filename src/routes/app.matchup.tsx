@@ -187,7 +187,7 @@ function Matchup() {
             </div>
           </div>
           <div className="space-y-3">
-            {statImpact.slice(0, 3).map((impact, index) => (
+            {statImpact.slice(0, 2).map((impact, index) => (
               <StatBar
                 key={impact.key}
                 impact={impact}
@@ -209,7 +209,7 @@ function Matchup() {
             <div className="h-px flex-1 bg-white/[0.07]" />
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {statImpact.slice(3).map((impact) => (
+            {statImpact.slice(2).map((impact) => (
               <SecondaryStat
                 key={impact.key}
                 impact={impact}
@@ -222,9 +222,9 @@ function Matchup() {
           </div>
 
           <div className="mt-5 rounded-lg border border-[#7ea6ff]/10 bg-[#7ea6ff]/[0.045] px-4 py-3 text-xs leading-relaxed text-white/40">
-            #1 always explains the predicted favorite. Stars measure estimated win-odds impact; the
-            advantage number shows the context-adjusted stat gap. An underdog factor is labeled as a
-            possible upset path instead of being presented as the reason they are favored.
+            #1 explains why the favorite leads. #2 shows the underdog's strongest measurable upset
+            win condition. Stars measure estimated win-odds impact; the advantage number shows the
+            context-adjusted stat gap. Every other factor is ranked below by impact.
           </div>
         </div>
       </section>

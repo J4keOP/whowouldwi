@@ -27,6 +27,7 @@ export function StatBar({
         ? { left: "50%", width: `${extent}%`, background: accentB }
         : { left: "48.5%", width: "3%", background: "#94a3b8" };
   const isPrimary = emphasis === "primary";
+  const isUpsetCondition = !isPrimary && impact.role === "counterfactor";
   const impactLabel =
     impact.probabilityImpact < 0.5
       ? "<1 estimated odds pt"
@@ -36,7 +37,7 @@ export function StatBar({
       ? `${impact.label} is the fight's biggest swing factor, but neither fighter owns a clear advantage.`
       : impact.role === "favorite-driver"
         ? `${winnerName}'s ${impact.label} is the strongest measured reason they are favored in this matchup.`
-        : `${winnerName}'s ${impact.label} is their strongest counterfactor and clearest path to an upset.`;
+        : `${winnerName} must exploit their ${impact.label} edge to overcome the favorite and win the upset.`;
 
   return (
     <article
@@ -82,13 +83,13 @@ export function StatBar({
             {isPrimary && (
               <div className="mb-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-amber-200/80">
                 {impact.role === "favorite-driver"
-                  ? `Primary reason ${winnerName} is favored`
+                  ? `Main reason ${winnerName} is favored`
                   : "Primary battle-deciding factor"}
               </div>
             )}
-            {!isPrimary && impact.role === "counterfactor" && (
-              <div className="mb-1 text-[0.55rem] font-bold uppercase tracking-[0.2em] text-violet-200/60">
-                Path to an upset
+            {isUpsetCondition && (
+              <div className="mb-1 text-[0.55rem] font-bold uppercase tracking-[0.2em] text-violet-200/75">
+                Upset win condition
               </div>
             )}
             <h4
@@ -126,8 +127,14 @@ export function StatBar({
         </div>
       </div>
 
-      {isPrimary && (
-        <p className="relative mt-5 max-w-3xl text-sm font-semibold leading-relaxed text-white/80 sm:text-base">
+      {(isPrimary || isUpsetCondition) && (
+        <p
+          className={`relative max-w-3xl font-semibold leading-relaxed ${
+            isPrimary
+              ? "mt-5 text-sm text-white/80 sm:text-base"
+              : "mt-4 text-xs text-white/65 sm:text-sm"
+          }`}
+        >
           {takeaway}
         </p>
       )}
