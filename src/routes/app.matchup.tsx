@@ -153,9 +153,14 @@ function Matchup() {
         <div className="border-b border-white/[0.07] bg-gradient-to-r from-white/[0.025] via-transparent to-white/[0.025] px-6 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/70">
-                Matchup-deciding stats
-              </h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/70">
+                  Matchup-deciding stats
+                </h3>
+                <span className="rounded-full border border-amber-200/15 bg-amber-200/[0.06] px-2.5 py-1 text-[0.55rem] uppercase tracking-[0.2em] text-amber-100/60">
+                  Dynamic impact model
+                </span>
+              </div>
               <p className="mt-1 text-xs text-white/40">
                 Ranked by how likely each stat is to decide this exact fight.
               </p>
