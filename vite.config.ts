@@ -7,6 +7,14 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  vite: {
+    // Use a fresh module graph for the recovery branch. This prevents Lovable's preview
+    // from hydrating current SSR HTML with a stale client-side route module.
+    cacheDir: "node_modules/.vite-lovable-v3-20260721",
+    optimizeDeps: {
+      force: true,
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
