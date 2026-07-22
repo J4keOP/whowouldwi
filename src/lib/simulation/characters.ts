@@ -37,7 +37,7 @@ export const CHARACTERS: Character[] = [
     name: "Doctor Doom",
     version: "Earth-616 standard armor",
     universe: "Marvel",
-    accent: "#5eead4",
+    accent: "#10b981",
     description:
       "Sorcerer-scientist monarch combining elite armor, layered force fields and high-order magic.",
     scale: 3,
@@ -600,7 +600,7 @@ export const CHARACTERS: Character[] = [
     name: "Hulk",
     version: "Earth-616, standard savage Hulk",
     universe: "Marvel",
-    accent: "#22c55e",
+    accent: "#7ee35a",
     description:
       "A regenerating gamma titan whose strength and resistance climb as the fight becomes more violent.",
     scale: 4,

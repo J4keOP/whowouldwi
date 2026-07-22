@@ -1,13 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { CharacterPortrait } from "@/components/wwr/CharacterPortrait";
 import { FighterSelect, pickTrendingMatchups } from "@/components/wwr/FighterSelect";
+import { VictoryOdds } from "@/components/wwr/VictoryOdds";
 import {
   ARENAS,
   DISTANCE_OPTIONS,
   TIME_OPTIONS,
   getArena,
+  makeBattleContext,
 } from "@/lib/simulation/arenas";
+import { getCharacter } from "@/lib/simulation/characters";
+import { analyzeMatchup } from "@/lib/simulation/engine";
 import type { RangeBand, TimeOfDay } from "@/lib/simulation/types";
 
 export const Route = createFileRoute("/app/")({
@@ -23,6 +27,18 @@ function Home() {
   const [startingDistance, setStartingDistance] = useState<RangeBand>(2);
   const trending = pickTrendingMatchups();
   const arena = getArena(arenaId);
+  const fighterA = getCharacter(a) ?? null;
+  const fighterB = getCharacter(b) ?? null;
+  const analysis = useMemo(() => {
+    if (!fighterA || !fighterB || fighterA.id === fighterB.id) return null;
+    return analyzeMatchup(fighterA, fighterB, {
+      context: makeBattleContext({
+        arenaId,
+        timeOfDay,
+        startingDistance,
+      }),
+    });
+  }, [fighterA, fighterB, arenaId, timeOfDay, startingDistance]);
 
   const canAnalyze = a && b && a !== b;
   const search = {
@@ -53,20 +69,9 @@ function Home() {
       </section>
 
       <section className="mt-12">
-        <div className="flex flex-col items-stretch gap-4 md:flex-row md:items-start">
+        <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start">
           <FighterSelect label="Fighter 1" value={a} onChange={setA} excludeId={b} />
-          <div className="flex items-center justify-center md:pt-24">
-            <div
-              className="grid h-16 w-16 place-items-center rounded-full font-display text-2xl font-black tracking-widest text-white"
-              style={{
-                background:
-                  "radial-gradient(circle, rgba(88,101,242,0.5), rgba(139,92,246,0.2) 60%, transparent)",
-                boxShadow: "0 0 40px rgba(88,101,242,0.4)",
-              }}
-            >
-              VS
-            </div>
-          </div>
+          <VictoryOdds fighterA={fighterA} fighterB={fighterB} analysis={analysis} />
           <FighterSelect label="Fighter 2" value={b} onChange={setB} excludeId={a} />
         </div>
 

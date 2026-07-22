@@ -63,7 +63,8 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -94,29 +95,122 @@
 
 /* Slow pulse for the ember/coming soon dot */
 @keyframes ember-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.15); }
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
 }
 @utility animate-ember {
   animation: ember-pulse 2.8s ease-in-out infinite;
 }
 
 @keyframes flicker {
-  0%, 100% { opacity: 1; }
-  45% { opacity: 0.92; }
-  50% { opacity: 0.75; }
-  55% { opacity: 0.95; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 0.75;
+  }
+  55% {
+    opacity: 0.95;
+  }
 }
 @utility animate-flicker {
   animation: flicker 6s ease-in-out infinite;
 }
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @utility animate-rise {
   animation: rise 1.2s ease-out both;
+}
+
+@keyframes odds-aura {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes odds-spark {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.7) rotate(0deg);
+  }
+  45% {
+    opacity: 0.95;
+    transform: scale(1.4) rotate(90deg);
+  }
+  60% {
+    opacity: 0.35;
+    transform: scale(0.85) rotate(150deg);
+  }
+}
+
+.victory-odds-chart {
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--fighter-a) 24%, transparent))
+    drop-shadow(0 0 24px color-mix(in srgb, var(--fighter-b) 18%, transparent));
+}
+
+.victory-odds-aura {
+  background: conic-gradient(
+    from -45deg,
+    color-mix(in srgb, var(--fighter-a) 38%, transparent),
+    transparent 35%,
+    color-mix(in srgb, var(--fighter-b) 34%, transparent),
+    transparent 82%
+  );
+  filter: blur(18px);
+  animation: odds-aura 4.2s ease-in-out infinite;
+}
+
+.victory-odds-segment {
+  transition:
+    stroke-dasharray 650ms cubic-bezier(0.22, 1, 0.36, 1),
+    stroke-dashoffset 650ms cubic-bezier(0.22, 1, 0.36, 1),
+    stroke 350ms ease;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.victory-odds-spark {
+  pointer-events: none;
+  animation-name: odds-spark;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .victory-odds-aura,
+  .victory-odds-spark {
+    animation: none;
+  }
+
+  .victory-odds-segment {
+    transition: none;
+  }
 }
 
 /* Fine grain overlay */
