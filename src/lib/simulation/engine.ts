@@ -144,15 +144,25 @@ export interface SimulateOptions {
 }
 
 function timelineFromOutcome(outcome: ReturnType<typeof runCombat>): TimelineEvent[] {
-  const important = outcome.events.filter(
-    (event, index, all) => event.importance >= 0.28 || index === 0 || index === all.length - 1,
-  );
-  const reduced =
+  const important = outcome.events
+    .map((event, sourceIndex) => ({ event, sourceIndex }))
+    .filter(
+      ({ event, sourceIndex }) =>
+        event.importance >= 0.28 || sourceIndex === 0 || sourceIndex === outcome.events.length - 1,
+    );
+  const reducedEntries =
     important.length <= 12
       ? important
-      : important
-          .filter((_, i) => i === 0 || i === important.length - 1 || i % 2 === 0)
-          .slice(0, 12);
+      : [
+          important[0],
+          ...important
+            .slice(1, -1)
+            .sort((a, b) => b.event.importance - a.event.importance)
+            .slice(0, 10)
+            .sort((a, b) => a.sourceIndex - b.sourceIndex),
+          important[important.length - 1],
+        ];
+  const reduced = reducedEntries.map(({ event }) => event);
 
   return reduced.map((event, index) => {
     const winnerLive = outcome.winnerSide === "A" ? event.liveA : 1 - event.liveA;

@@ -23,12 +23,7 @@ export type StatKey =
 export type Stats = Record<StatKey, number>;
 
 export type DamageType =
-  | "physical"
-  | "energy"
-  | "mystical"
-  | "psychic"
-  | "chemical"
-  | "environmental";
+  "physical" | "energy" | "mystical" | "psychic" | "chemical" | "environmental";
 
 export type ActionKind = "attack" | "control" | "defense" | "mobility" | "finisher";
 
@@ -36,21 +31,11 @@ export type ActionKind = "attack" | "control" | "defense" | "mobility" | "finish
 export type RangeBand = 0 | 1 | 2 | 3;
 
 export type VictoryMethod =
-  | "knockout"
-  | "incapacitation"
-  | "containment"
-  | "exhaustion"
-  | "battlefield-removal";
+  "knockout" | "incapacitation" | "containment" | "exhaustion" | "battlefield-removal";
 
 export type TimeOfDay = "dawn" | "day" | "dusk" | "night" | "timeless";
 
-export type TerrainType =
-  | "urban"
-  | "wilderness"
-  | "volcanic"
-  | "ocean"
-  | "space"
-  | "divine-realm";
+export type TerrainType = "urban" | "wilderness" | "volcanic" | "ocean" | "space" | "divine-realm";
 
 export type AtmosphereType = "earthlike" | "toxic" | "vacuum" | "magical";
 
@@ -139,7 +124,17 @@ export interface CombatAction {
   text: {
     hit: string;
     miss?: string;
+    /** Optional authored explanation used only when this action ends the fight. */
+    finish?: Partial<Record<VictoryMethod, string>>;
   };
+}
+
+export interface CombatTechnique {
+  id: string;
+  name: string;
+  /** The balanced mechanical action family this visible technique uses. */
+  actionId: string;
+  text: CombatAction["text"];
 }
 
 export interface Character {
@@ -159,6 +154,8 @@ export interface Character {
   resistances: string[];
   weaknesses: string[];
   actions: CombatAction[];
+  /** Canonical-style visible variants of the balanced action families. */
+  techniques?: CombatTechnique[];
   victoryPaths: VictoryPath[];
 }
 
