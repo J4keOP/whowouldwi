@@ -13,19 +13,14 @@ export function CharacterCard({
       className="rounded-xl border border-white/10 bg-[oklch(0.11_0.02_260)] p-5"
       style={{ boxShadow: `0 0 40px ${character.accent}10` }}
     >
-      <div className="flex items-center gap-4">
-        <CharacterPortrait character={character} size={compact ? 64 : 88} />
+      <div className="flex flex-col items-center gap-4 text-center">
+        <CharacterPortrait character={character} size={compact ? 124 : 176} showName />
         <div className="min-w-0">
           <div className="text-xs uppercase tracking-[0.2em] text-white/50">
-            {character.universe}
-          </div>
-          <div className="truncate font-display text-2xl font-bold text-white">
-            {character.name}
+            {character.version}
           </div>
           {!compact && (
-            <p className="mt-1 line-clamp-2 text-sm text-white/60">
-              {character.description}
-            </p>
+            <p className="mt-1 line-clamp-2 text-sm text-white/60">{character.description}</p>
           )}
         </div>
       </div>

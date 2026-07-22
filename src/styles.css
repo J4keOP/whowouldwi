@@ -202,6 +202,105 @@
   animation-iteration-count: infinite;
 }
 
+@keyframes fighter-mark-breathe {
+  0%,
+  100% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.045) translate3d(0, -1.5%, 0);
+  }
+}
+
+@keyframes fighter-mark-aura {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: rotate(-8deg) scale(0.9);
+  }
+  50% {
+    opacity: 0.52;
+    transform: rotate(8deg) scale(1.08);
+  }
+}
+
+.fighter-mark {
+  isolation: isolate;
+}
+
+.fighter-mark-grid {
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--fighter-accent) 22%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--fighter-accent) 16%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 16px 16px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+.fighter-mark-aura {
+  z-index: -1;
+  border-radius: 45%;
+  background: conic-gradient(
+    from 20deg,
+    transparent,
+    color-mix(in srgb, var(--fighter-accent) 70%, transparent),
+    transparent 42%,
+    color-mix(in srgb, var(--fighter-secondary) 74%, transparent),
+    transparent 80%
+  );
+  filter: blur(14px);
+  animation: fighter-mark-aura 5.5s ease-in-out infinite;
+}
+
+.fighter-mark-silhouette {
+  transform-origin: 50% 65%;
+  animation: fighter-mark-breathe 6.5s ease-in-out infinite;
+  transition: transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fighter-mark:hover .fighter-mark-silhouette,
+.group:hover .fighter-mark-silhouette {
+  transform: scale(1.075) translateY(-2%);
+}
+
+.fighter-mark-name {
+  overflow-wrap: anywhere;
+}
+
+.fighter-mark-name--regal {
+  letter-spacing: 0.04em;
+}
+
+.fighter-mark-name--industrial {
+  letter-spacing: 0.11em;
+}
+
+.fighter-mark-name--kinetic {
+  font-style: italic;
+  letter-spacing: -0.02em;
+  transform: skewX(-5deg);
+}
+
+.fighter-mark-name--massive {
+  letter-spacing: -0.055em;
+  transform: scaleX(1.06);
+}
+
+.fighter-mark-name--noir {
+  letter-spacing: 0.14em;
+}
+
+.fighter-mark-name--primal {
+  letter-spacing: 0.045em;
+  transform: scaleY(1.08);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .victory-odds-aura,
   .victory-odds-spark {
@@ -210,6 +309,11 @@
 
   .victory-odds-segment {
     transition: none;
+  }
+
+  .fighter-mark-aura,
+  .fighter-mark-silhouette {
+    animation: none;
   }
 }
 

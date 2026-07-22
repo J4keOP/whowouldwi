@@ -137,12 +137,29 @@ export interface CombatTechnique {
   text: CombatAction["text"];
 }
 
+export type CharacterSilhouette =
+  "armored-mage" | "space-knight" | "web-hero" | "gamma-titan" | "night-vigilante" | "atomic-kaiju";
+
+export type CharacterNameStyle = "regal" | "industrial" | "kinetic" | "massive" | "noir" | "primal";
+
+/**
+ * Original UI mark metadata. Keeping this required means future roster entries
+ * cannot silently fall back to initials or an unthemed placeholder.
+ */
+export interface CharacterVisualProfile {
+  silhouette: CharacterSilhouette;
+  secondary: string;
+  highlight: string;
+  nameStyle: CharacterNameStyle;
+}
+
 export interface Character {
   id: string;
   name: string;
   version: string;
   universe: string;
   accent: string;
+  visual: CharacterVisualProfile;
   description: string;
   stats: Stats;
   /** 1 human, 2 enhanced, 3 heavy, 4 kaiju, 5 cosmic. */
