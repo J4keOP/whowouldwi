@@ -176,18 +176,19 @@ function Matchup() {
         <div className="p-6">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[0.6rem] uppercase tracking-[0.24em] text-amber-200/65">
-              Deciding stats
+              The fight at a glance
             </div>
             <div className="text-[0.58rem] uppercase tracking-wider text-white/25">
               Context-adjusted values
             </div>
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {statImpact.slice(0, 5).map((impact, index) => (
+          <div className="space-y-3">
+            {statImpact.slice(0, 3).map((impact, index) => (
               <StatBar
                 key={impact.key}
                 impact={impact}
                 rank={index + 1}
+                emphasis={index === 0 ? "primary" : "supporting"}
                 nameA={a.name}
                 nameB={b.name}
                 accentA={a.accent}
@@ -199,12 +200,12 @@ function Matchup() {
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-white/[0.07]" />
             <div className="text-[0.58rem] uppercase tracking-[0.22em] text-white/25">
-              Lower-impact stats
+              Secondary factors
             </div>
             <div className="h-px flex-1 bg-white/[0.07]" />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {statImpact.slice(5).map((impact) => (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {statImpact.slice(3).map((impact) => (
               <SecondaryStat
                 key={impact.key}
                 impact={impact}

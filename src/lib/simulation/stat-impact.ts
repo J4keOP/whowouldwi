@@ -253,9 +253,20 @@ export function rankStatImpact(a: Character, b: Character, context: BattleContex
   }).sort((left, right) => right.score - left.score);
 
   const maxScore = raw[0]?.score ?? 1;
-  return raw.map((item) => {
+  return raw.map((item, index) => {
     const displayScore = item.score * 0.55 + (item.score / maxScore) * 0.45;
-    const importance = clamp(Math.ceil(displayScore * 5), 1, 5) as StatImpactLevel;
+    const calculatedImportance = clamp(Math.ceil(displayScore * 5), 1, 5);
+    // Give every matchup a clear reading order. Only its strongest factor can be
+    // Critical; supporting factors and the secondary grid step down visibly.
+    const importance = (
+      index === 0
+        ? 5
+        : index === 1
+          ? clamp(calculatedImportance, 3, 4)
+          : index === 2
+            ? clamp(calculatedImportance, 2, 3)
+            : clamp(calculatedImportance, 1, 2)
+    ) as StatImpactLevel;
     return { ...item, importance, importanceLabel: importanceLabel(importance) };
   });
 }

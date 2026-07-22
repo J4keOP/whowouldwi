@@ -3,6 +3,7 @@ import type { StatImpact } from "@/lib/simulation/stat-impact";
 export function StatBar({
   impact,
   rank,
+  emphasis = "supporting",
   nameA,
   nameB,
   accentA,
@@ -10,6 +11,7 @@ export function StatBar({
 }: {
   impact: StatImpact;
   rank: number;
+  emphasis?: "primary" | "supporting";
   nameA: string;
   nameB: string;
   accentA: string;
@@ -24,23 +26,74 @@ export function StatBar({
       : impact.edge === "B"
         ? { left: "50%", width: `${extent}%`, background: accentB }
         : { left: "48.5%", width: "3%", background: "#94a3b8" };
+  const isPrimary = emphasis === "primary";
+  const takeaway =
+    impact.edge === "EVEN"
+      ? `${impact.label} is the fight's biggest swing factor, but neither fighter owns a clear advantage.`
+      : `${winnerName}'s ${impact.label} is the strongest stat-based reason they can win this matchup.`;
 
   return (
-    <article className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:border-white/20">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="pt-0.5 font-display text-xs tabular-nums text-white/25">
-            {String(rank).padStart(2, "0")}
+    <article
+      className={`relative overflow-hidden rounded-xl border bg-black/25 transition ${
+        isPrimary ? "p-5 sm:p-6" : "p-4 sm:p-5"
+      }`}
+      style={{
+        borderColor: isPrimary ? `${winnerAccent}65` : `${winnerAccent}28`,
+        boxShadow: isPrimary
+          ? `0 0 26px ${winnerAccent}28, inset 0 0 40px ${winnerAccent}0d`
+          : `0 0 14px ${winnerAccent}0d`,
+      }}
+    >
+      {isPrimary && (
+        <>
+          <div
+            className="pointer-events-none absolute -right-12 -top-20 h-52 w-52 animate-pulse rounded-full opacity-20 blur-3xl motion-reduce:animate-none"
+            style={{ background: winnerAccent }}
+          />
+          <div
+            className="pointer-events-none absolute -bottom-20 -left-16 h-40 w-40 rounded-full opacity-10 blur-3xl"
+            style={{ background: winnerAccent }}
+          />
+        </>
+      )}
+
+      <div className="relative flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-full border font-display font-black tabular-nums ${
+              isPrimary ? "h-11 w-11 text-lg" : "h-8 w-8 text-xs"
+            }`}
+            style={{
+              color: winnerAccent,
+              borderColor: `${winnerAccent}55`,
+              background: `${winnerAccent}12`,
+              boxShadow: isPrimary ? `0 0 18px ${winnerAccent}40` : undefined,
+            }}
+          >
+            #{rank}
           </div>
           <div>
-            <h4 className="font-display text-sm font-bold uppercase tracking-[0.18em] text-white">
+            {isPrimary && (
+              <div className="mb-1 text-[0.58rem] font-bold uppercase tracking-[0.24em] text-amber-200/80">
+                Primary battle-deciding factor
+              </div>
+            )}
+            <h4
+              className={`font-display font-black uppercase text-white ${
+                isPrimary
+                  ? "text-xl tracking-[0.14em] sm:text-2xl"
+                  : "text-sm tracking-[0.18em] sm:text-base"
+              }`}
+            >
               {impact.label}
             </h4>
-            <ImportanceStars impact={impact} />
+            <ImportanceStars impact={impact} prominent={isPrimary} />
           </div>
         </div>
         <div
-          className="rounded-full border px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-widest"
+          className={`rounded-full border font-semibold uppercase tracking-widest ${
+            isPrimary ? "px-4 py-2 text-xs" : "px-3 py-1 text-[0.6rem]"
+          }`}
           style={{
             color: winnerAccent,
             borderColor: `${winnerAccent}45`,
@@ -51,14 +104,29 @@ export function StatBar({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-[3.25rem_1fr_3.25rem] items-center gap-3">
+      {isPrimary && (
+        <p className="relative mt-5 max-w-3xl text-sm font-semibold leading-relaxed text-white/80 sm:text-base">
+          {takeaway}
+        </p>
+      )}
+
+      <div
+        className={`relative grid items-center gap-3 ${
+          isPrimary
+            ? "mt-5 grid-cols-[4rem_1fr_4rem] sm:grid-cols-[5rem_1fr_5rem]"
+            : "mt-4 grid-cols-[3.25rem_1fr_3.25rem]"
+        }`}
+      >
         <StatValue
           value={impact.valueA}
           delta={impact.contextDeltaA}
           color={accentA}
           align="right"
+          prominent={isPrimary}
         />
-        <div className="relative h-2 overflow-hidden rounded-full bg-white/[0.065]">
+        <div
+          className={`relative overflow-hidden rounded-full bg-white/[0.065] ${isPrimary ? "h-3" : "h-2"}`}
+        >
           <div className="absolute inset-y-0 left-1/2 w-px bg-white/30" />
           <div
             className="absolute inset-y-0 rounded-full transition-all duration-500"
@@ -73,10 +141,17 @@ export function StatBar({
           delta={impact.contextDeltaB}
           color={accentB}
           align="left"
+          prominent={isPrimary}
         />
       </div>
 
-      <p className="mt-3 text-xs leading-relaxed text-white/45">{impact.detail}</p>
+      <p
+        className={`relative leading-relaxed ${
+          isPrimary ? "mt-4 text-sm text-white/55" : "mt-3 text-xs text-white/45"
+        }`}
+      >
+        {impact.detail}
+      </p>
     </article>
   );
 }
@@ -117,13 +192,27 @@ export function SecondaryStat({
   );
 }
 
-function ImportanceStars({ impact, compact = false }: { impact: StatImpact; compact?: boolean }) {
+function ImportanceStars({
+  impact,
+  compact = false,
+  prominent = false,
+}: {
+  impact: StatImpact;
+  compact?: boolean;
+  prominent?: boolean;
+}) {
   return (
     <div
-      className={`mt-1 flex items-center gap-2 ${compact ? "text-[0.55rem]" : "text-[0.6rem]"}`}
+      className={`mt-1 flex items-center gap-2 ${
+        prominent ? "text-sm" : compact ? "text-[0.55rem]" : "text-[0.6rem]"
+      }`}
       aria-label={`${impact.importanceLabel} importance, ${impact.importance} out of 5`}
     >
-      <span className="tracking-[0.08em] text-amber-300" aria-hidden="true">
+      <span
+        className="tracking-[0.08em] text-amber-300"
+        style={{ textShadow: prominent ? "0 0 12px rgba(252,211,77,0.75)" : undefined }}
+        aria-hidden="true"
+      >
         {"★".repeat(impact.importance)}
         <span className="text-white/12">{"★".repeat(5 - impact.importance)}</span>
       </span>
@@ -137,15 +226,20 @@ function StatValue({
   delta,
   color,
   align,
+  prominent = false,
 }: {
   value: number;
   delta: number;
   color: string;
   align: "left" | "right";
+  prominent?: boolean;
 }) {
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
-      <div className="font-display text-lg font-black tabular-nums" style={{ color }}>
+      <div
+        className={`font-display font-black tabular-nums ${prominent ? "text-2xl sm:text-3xl" : "text-lg"}`}
+        style={{ color, textShadow: prominent ? `0 0 14px ${color}65` : undefined }}
+      >
         {value}
       </div>
       {delta !== 0 && (
