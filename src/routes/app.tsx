@@ -81,7 +81,7 @@ function AppLayout() {
 
       <footer className="mx-auto mt-16 max-w-7xl border-t border-white/5 px-6 py-6 text-xs text-white/40">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>Prototype build — every value is placeholder data.</span>
+          <span>Engine v3 prototype — context and character values remain curated test data.</span>
           <Link
             to="/app/engine-test"
             className="text-white/50 underline-offset-4 hover:text-white hover:underline"

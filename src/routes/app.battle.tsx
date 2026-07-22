@@ -1,16 +1,21 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
+import { CharacterPortrait } from "@/components/wwr/CharacterPortrait";
+import { contextSummary, makeBattleContext } from "@/lib/simulation/arenas";
 import { getCharacter } from "@/lib/simulation/characters";
+import { formatDuration } from "@/lib/simulation/duration";
 import { analyzeMatchup, simulateBattle } from "@/lib/simulation/engine";
 import { randomSeed } from "@/lib/simulation/rng";
-import { CharacterPortrait } from "@/components/wwr/CharacterPortrait";
-import type { Rarity } from "@/lib/simulation/types";
+import type { RangeBand, Rarity, TimeOfDay } from "@/lib/simulation/types";
 
 const searchSchema = z.object({
   a: z.string(),
   b: z.string(),
   seed: z.coerce.number().int(),
+  arena: z.string().default("neutral-ruined-city"),
+  time: z.enum(["dawn", "day", "dusk", "night", "timeless"]).default("day"),
+  distance: z.coerce.number().int().min(0).max(3).default(2),
 });
 
 export const Route = createFileRoute("/app/battle")({
@@ -28,17 +33,26 @@ const RARITY_COLOR: Record<Rarity, string> = {
 };
 
 function Battle() {
-  const { a: aId, b: bId, seed } = Route.useSearch();
+  const { a: aId, b: bId, seed, arena: arenaId, time, distance } = Route.useSearch();
   const navigate = useNavigate();
   const a = getCharacter(aId);
   const b = getCharacter(bId);
+  const context = useMemo(
+    () =>
+      makeBattleContext({
+        arenaId,
+        timeOfDay: time as TimeOfDay,
+        startingDistance: distance as RangeBand,
+      }),
+    [arenaId, time, distance],
+  );
 
   const { analysis, result } = useMemo(() => {
     if (!a || !b) return { analysis: null, result: null };
-    const an = analyzeMatchup(a, b);
-    const res = simulateBattle(a, b, { seed, precomputedAnalysis: an });
+    const an = analyzeMatchup(a, b, { context });
+    const res = simulateBattle(a, b, { seed, precomputedAnalysis: an, context });
     return { analysis: an, result: res };
-  }, [a, b, seed]);
+  }, [a, b, seed, context]);
 
   if (!a || !b || !result || !analysis) {
     return (
@@ -54,24 +68,26 @@ function Battle() {
   const winner = result.winnerSide === "A" ? a : b;
   const loser = result.winnerSide === "A" ? b : a;
   const rarityColor = RARITY_COLOR[result.rarity];
+  const matchupSearch = {
+    a: a.id,
+    b: b.id,
+    arena: context.arenaId,
+    time: context.timeOfDay,
+    distance: context.startingDistance,
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <button
-          onClick={() =>
-            navigate({ to: "/app/matchup", search: { a: a.id, b: b.id } })
-          }
+          onClick={() => navigate({ to: "/app/matchup", search: matchupSearch })}
           className="text-xs uppercase tracking-widest text-white/50 hover:text-white"
         >
           ← View analysis
         </button>
-        <div className="font-mono text-[0.7rem] text-white/40">
-          seed · {result.seed}
-        </div>
+        <div className="font-mono text-[0.7rem] text-white/40">seed · {result.seed}</div>
       </div>
 
-      {/* Winner banner */}
       <div
         className="relative overflow-hidden rounded-2xl border p-8"
         style={{
@@ -85,9 +101,7 @@ function Battle() {
         <div className="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
           <CharacterPortrait character={winner} size={120} />
           <div className="flex-1">
-            <div className="text-xs uppercase tracking-[0.3em] text-white/50">
-              Winner
-            </div>
+            <div className="text-xs uppercase tracking-[0.3em] text-white/50">Winner</div>
             <div
               className="font-display text-5xl font-black text-white"
               style={{ textShadow: `0 0 30px ${winner.accent}80` }}
@@ -119,23 +133,42 @@ function Battle() {
             </div>
             <div className="mt-3 text-sm text-white/70">
               <span className="text-white/50">Winning path:</span>{" "}
-              <span className="font-semibold text-white">{result.path.name}</span>{" "}
-              — {result.path.description}
+              <span className="font-semibold text-white">{result.path.name}</span> —{" "}
+              {result.path.description}
             </div>
-            <div className="mt-1 text-sm text-white/50">
-              Duration ~{result.durationSeconds}s
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/55">
+              <span>{result.method.replaceAll("-", " ")}</span>
+              <span>{result.rounds} rounds</span>
+              <span>Total elapsed · {formatDuration(result.totalElapsedSeconds)}</span>
+              <span>Active combat · {formatDuration(result.activeCombatSeconds)}</span>
+            </div>
+            <div className="mt-2 text-xs text-[#a9c2ff]">{contextSummary(context)}</div>
+            <div className="mt-1 font-mono text-[0.65rem] text-white/30">
+              Engine {result.engineVersion}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Buttons */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <DurationCard
+          label="Total elapsed fight time"
+          value={formatDuration(result.totalElapsedSeconds)}
+          detail="Includes pursuit, concealment, recovery, stalemates and re-engagements."
+        />
+        <DurationCard
+          label="Active combat time"
+          value={formatDuration(result.activeCombatSeconds)}
+          detail="Only direct attacks, defenses, movement and control exchanges."
+        />
+      </div>
+
       <div className="flex flex-wrap justify-center gap-3">
         <button
           onClick={() =>
             navigate({
               to: "/app/battle",
-              search: { a: a.id, b: b.id, seed: randomSeed() },
+              search: { ...matchupSearch, seed: randomSeed() },
             })
           }
           className="rounded-lg px-6 py-3 font-display text-xs font-bold tracking-[0.25em] text-white"
@@ -150,7 +183,7 @@ function Battle() {
           onClick={() =>
             navigate({
               to: "/app/battle",
-              search: { a: a.id, b: b.id, seed },
+              search: { ...matchupSearch, seed },
               replace: true,
             })
           }
@@ -159,9 +192,7 @@ function Battle() {
           REPLAY THIS SEED
         </button>
         <button
-          onClick={() =>
-            navigate({ to: "/app/matchup", search: { a: a.id, b: b.id } })
-          }
+          onClick={() => navigate({ to: "/app/matchup", search: matchupSearch })}
           className="rounded-lg border border-white/20 bg-white/[0.03] px-6 py-3 font-display text-xs font-bold tracking-[0.25em] text-white/80 hover:bg-white/[0.06]"
         >
           VIEW ANALYSIS
@@ -174,7 +205,6 @@ function Battle() {
         </button>
       </div>
 
-      {/* Explanation */}
       <section className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
         <h3 className="mb-2 font-display text-sm uppercase tracking-[0.3em] text-white/60">
           Why this simulation ended this way
@@ -194,7 +224,6 @@ function Battle() {
         </div>
       </section>
 
-      {/* Timeline */}
       <section className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
         <h3 className="mb-4 font-display text-sm uppercase tracking-[0.3em] text-white/60">
           Battle timeline
@@ -205,27 +234,19 @@ function Battle() {
               <span
                 className="absolute -left-[9px] top-1.5 h-3 w-3 rounded-full"
                 style={{
-                  background:
-                    ev.actor === "A"
-                      ? a.accent
-                      : ev.actor === "B"
-                        ? b.accent
-                        : "#64748b",
+                  background: ev.actor === "A" ? a.accent : ev.actor === "B" ? b.accent : "#64748b",
                   boxShadow: `0 0 10px ${
-                    ev.actor === "A"
-                      ? a.accent
-                      : ev.actor === "B"
-                        ? b.accent
-                        : "#64748b"
+                    ev.actor === "A" ? a.accent : ev.actor === "B" ? b.accent : "#64748b"
                   }`,
                 }}
               />
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <div className="text-xs uppercase tracking-widest text-white/40">
-                  {ev.phase} · t+{ev.t}s
+                  {ev.phase} · elapsed {formatDuration(ev.t, true)} · active{" "}
+                  {formatDuration(ev.activeT, true)}
                 </div>
                 <div className="text-xs font-mono text-white/50">
-                  win prob {(ev.probabilityAt * 100).toFixed(1)}%
+                  winner live odds {(ev.probabilityAt * 100).toFixed(1)}%
                 </div>
               </div>
               <p className="mt-1 text-white/85">{ev.text}</p>
@@ -237,15 +258,17 @@ function Battle() {
   );
 }
 
-function Insight({
-  label,
-  accent,
-  text,
-}: {
-  label: string;
-  accent: string;
-  text: string;
-}) {
+function DurationCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-5">
+      <div className="text-[0.65rem] uppercase tracking-[0.24em] text-white/45">{label}</div>
+      <div className="mt-1 font-display text-2xl font-bold text-white">{value}</div>
+      <div className="mt-1 text-xs text-white/40">{detail}</div>
+    </div>
+  );
+}
+
+function Insight({ label, accent, text }: { label: string; accent: string; text: string }) {
   return (
     <div
       className="rounded-lg border p-4"
@@ -254,10 +277,7 @@ function Insight({
         background: `${accent}0f`,
       }}
     >
-      <div
-        className="text-[0.65rem] uppercase tracking-widest"
-        style={{ color: accent }}
-      >
+      <div className="text-[0.65rem] uppercase tracking-widest" style={{ color: accent }}>
         {label}
       </div>
       <div className="mt-1 text-sm text-white/80">{text}</div>

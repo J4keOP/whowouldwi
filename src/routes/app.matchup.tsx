@@ -1,16 +1,25 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
+import { CharacterCard } from "@/components/wwr/CharacterCard";
+import { StatBar } from "@/components/wwr/StatBar";
+import {
+  DISTANCE_OPTIONS,
+  contextSummary,
+  getArena,
+  makeBattleContext,
+} from "@/lib/simulation/arenas";
 import { getCharacter } from "@/lib/simulation/characters";
 import { analyzeMatchup } from "@/lib/simulation/engine";
 import { randomSeed } from "@/lib/simulation/rng";
-import { CharacterCard } from "@/components/wwr/CharacterCard";
-import { StatBar } from "@/components/wwr/StatBar";
-import type { StatKey } from "@/lib/simulation/types";
+import type { RangeBand, StatKey, TimeOfDay } from "@/lib/simulation/types";
 
 const searchSchema = z.object({
   a: z.string(),
   b: z.string(),
+  arena: z.string().default("neutral-ruined-city"),
+  time: z.enum(["dawn", "day", "dusk", "night", "timeless"]).default("day"),
+  distance: z.coerce.number().int().min(0).max(3).default(2),
 });
 
 export const Route = createFileRoute("/app/matchup")({
@@ -34,14 +43,23 @@ const STAT_ORDER: StatKey[] = [
 ];
 
 function Matchup() {
-  const { a: aId, b: bId } = Route.useSearch();
+  const { a: aId, b: bId, arena: arenaId, time, distance } = Route.useSearch();
   const navigate = useNavigate();
   const a = getCharacter(aId);
   const b = getCharacter(bId);
-
+  const context = useMemo(
+    () =>
+      makeBattleContext({
+        arenaId,
+        timeOfDay: time as TimeOfDay,
+        startingDistance: distance as RangeBand,
+      }),
+    [arenaId, time, distance],
+  );
+  const arena = getArena(context.arenaId);
   const analysis = useMemo(
-    () => (a && b ? analyzeMatchup(a, b) : null),
-    [a, b],
+    () => (a && b ? analyzeMatchup(a, b, { context }) : null),
+    [a, b, context],
   );
 
   if (!a || !b || !analysis) {
@@ -58,27 +76,45 @@ function Matchup() {
   const probAPct = (analysis.probA * 100).toFixed(1);
   const probBPct = (analysis.probB * 100).toFixed(1);
   const favName =
-    analysis.favorite === "A"
-      ? a.name
-      : analysis.favorite === "B"
-        ? b.name
-        : "Even fight";
+    analysis.favorite === "A" ? a.name : analysis.favorite === "B" ? b.name : "Even fight";
+  const search = {
+    a: a.id,
+    b: b.id,
+    arena: context.arenaId,
+    time: context.timeOfDay,
+    distance: context.startingDistance,
+  };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <Link
-          to="/app"
-          className="text-xs uppercase tracking-widest text-white/50 hover:text-white"
-        >
+        <Link to="/app" className="text-xs uppercase tracking-widest text-white/50 hover:text-white">
           ← Change matchup
         </Link>
-        <div className="text-xs uppercase tracking-widest text-white/40">
-          Pre-battle analysis
-        </div>
+        <div className="text-xs uppercase tracking-widest text-white/40">Pre-battle analysis</div>
       </div>
 
-      {/* Cards + probability */}
+      <section className="rounded-xl border border-[#7ea6ff]/20 bg-[#7ea6ff]/[0.055] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[0.65rem] uppercase tracking-[0.28em] text-[#a9c2ff]">
+              Battle context
+            </div>
+            <div className="mt-1 font-display text-xl font-bold text-white">
+              {contextSummary(context)}
+            </div>
+            <div className="mt-1 text-sm text-white/50">{arena.description}</div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[0.65rem] uppercase tracking-widest text-white/65">
+            <ContextChip label={`Terrain · ${arena.terrain}`} />
+            <ContextChip label={`Atmosphere · ${arena.atmosphere}`} />
+            <ContextChip
+              label={`Start · ${DISTANCE_OPTIONS.find((x) => x.value === context.startingDistance)?.label}`}
+            />
+          </div>
+        </div>
+      </section>
+
       <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-stretch">
         <CharacterCard character={a} />
         <div className="flex flex-col items-center justify-center gap-2 py-4">
@@ -91,43 +127,42 @@ function Matchup() {
             <ProbBig value={probBPct} accent={b.accent} />
           </div>
           <div className="mt-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.65rem] uppercase tracking-widest text-white/70">
-            {analysis.favorite === "EVEN"
-              ? "Coin flip"
-              : `Favorite: ${favName}`}
+            {analysis.favorite === "EVEN" ? "Coin flip" : `Favorite: ${favName}`}
           </div>
           <div className="text-[0.6rem] uppercase tracking-widest text-white/40">
             Confidence {(analysis.confidence * 100).toFixed(0)}%
+          </div>
+          <div className="max-w-[220px] text-center text-[0.58rem] leading-relaxed text-white/30">
+            Estimated from {analysis.sampleSize.toLocaleString()} context-aware fights · Engine{" "}
+            {analysis.engineVersion}
           </div>
         </div>
         <CharacterCard character={b} />
       </div>
 
-      {/* Simulate */}
       <div className="flex justify-center">
         <button
           type="button"
           onClick={() =>
             navigate({
               to: "/app/battle",
-              search: { a: a.id, b: b.id, seed: randomSeed() },
+              search: { ...search, seed: randomSeed() },
             })
           }
           className="rounded-lg px-12 py-4 font-display text-sm font-bold tracking-[0.25em] text-white"
           style={{
             background: "linear-gradient(135deg, #4f8dff 0%, #8b5cf6 100%)",
-            boxShadow:
-              "0 0 40px rgba(79,141,255,0.5), 0 0 80px rgba(139,92,246,0.3)",
+            boxShadow: "0 0 40px rgba(79,141,255,0.5), 0 0 80px rgba(139,92,246,0.3)",
           }}
         >
           SIMULATE BATTLE →
         </button>
       </div>
 
-      {/* Stats */}
       <section className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/60">
-            Stat comparison
+            Base stat comparison
           </h3>
           <div className="flex gap-4 text-xs">
             <span style={{ color: a.accent }}>{a.name}</span>
@@ -147,31 +182,29 @@ function Matchup() {
             />
           ))}
         </div>
+        <div className="mt-4 text-xs text-white/35">
+          Context bonuses and penalties are applied inside the simulation and explained in the
+          matchup factors below.
+        </div>
       </section>
 
-      {/* Factors */}
       <section className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
         <h3 className="mb-4 font-display text-sm uppercase tracking-[0.3em] text-white/60">
           Top 5 matchup factors
         </h3>
         <ol className="space-y-2">
           {analysis.factors.map((f, i) => {
-            const who =
-              f.favors === "A" ? a : f.favors === "B" ? b : null;
+            const who = f.favors === "A" ? a : f.favors === "B" ? b : null;
             return (
               <li
                 key={i}
                 className="flex items-center justify-between gap-4 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3"
               >
                 <div className="min-w-0">
-                  <div className="font-medium text-white">
-                    {f.label.replace(/^Base:/, "")}
-                  </div>
-                  <div className="truncate text-xs text-white/50">
-                    {f.detail}
-                  </div>
+                  <div className="font-medium text-white">{f.label.replace(/^Base:/, "")}</div>
+                  <div className="text-xs text-white/50">{f.detail}</div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-3">
                   <div
                     className="rounded-full px-3 py-1 text-[0.65rem] uppercase tracking-widest"
                     style={{
@@ -191,13 +224,9 @@ function Matchup() {
         </ol>
       </section>
 
-      {/* Victory paths */}
       <section className="grid gap-4 md:grid-cols-2">
         {[a, b].map((c) => (
-          <div
-            key={c.id}
-            className="rounded-xl border border-white/10 bg-white/[0.02] p-6"
-          >
+          <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
             <h3
               className="mb-3 font-display text-sm uppercase tracking-widest"
               style={{ color: c.accent }}
@@ -217,6 +246,10 @@ function Matchup() {
       </section>
     </div>
   );
+}
+
+function ContextChip({ label }: { label: string }) {
+  return <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1">{label}</span>;
 }
 
 function ProbBig({ value, accent }: { value: string; accent: string }) {

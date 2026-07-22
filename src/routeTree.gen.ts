@@ -9,21 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as AppIndexRouteImport } from './routes/app.index'
-import { Route as AppMatchupRouteImport } from './routes/app.matchup'
-import { Route as AppEngineTestRouteImport } from './routes/app.engine-test'
 import { Route as AppBattleRouteImport } from './routes/app.battle'
+import { Route as AppEngineTestRouteImport } from './routes/app.engine-test'
+import { Route as AppMatchupRouteImport } from './routes/app.matchup'
 
-const AppRoute = AppRouteImport.update({
-  id: '/app',
-  path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -31,9 +31,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const AppMatchupRoute = AppMatchupRouteImport.update({
-  id: '/matchup',
-  path: '/matchup',
+const AppBattleRoute = AppBattleRouteImport.update({
+  id: '/battle',
+  path: '/battle',
   getParentRoute: () => AppRoute,
 } as any)
 const AppEngineTestRoute = AppEngineTestRouteImport.update({
@@ -41,9 +41,9 @@ const AppEngineTestRoute = AppEngineTestRouteImport.update({
   path: '/engine-test',
   getParentRoute: () => AppRoute,
 } as any)
-const AppBattleRoute = AppBattleRouteImport.update({
-  id: '/battle',
-  path: '/battle',
+const AppMatchupRoute = AppMatchupRouteImport.update({
+  id: '/matchup',
+  path: '/matchup',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -74,12 +74,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/app'
-    | '/app/battle'
-    | '/app/engine-test'
-    | '/app/matchup'
-    | '/app/'
+    '/' | '/app' | '/app/battle' | '/app/engine-test' | '/app/matchup' | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/app/battle' | '/app/engine-test' | '/app/matchup' | '/app'
   id:
@@ -99,18 +94,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/app': {
-      id: '/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -120,11 +115,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/matchup': {
-      id: '/app/matchup'
-      path: '/matchup'
-      fullPath: '/app/matchup'
-      preLoaderRoute: typeof AppMatchupRouteImport
+    '/app/battle': {
+      id: '/app/battle'
+      path: '/battle'
+      fullPath: '/app/battle'
+      preLoaderRoute: typeof AppBattleRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/engine-test': {
@@ -134,11 +129,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppEngineTestRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/battle': {
-      id: '/app/battle'
-      path: '/battle'
-      fullPath: '/app/battle'
-      preLoaderRoute: typeof AppBattleRouteImport
+    '/app/matchup': {
+      id: '/app/matchup'
+      path: '/matchup'
+      fullPath: '/app/matchup'
+      preLoaderRoute: typeof AppMatchupRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -167,3 +162,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

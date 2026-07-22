@@ -1,207 +1,231 @@
-// Centralized matchup interaction rules. Every rule returns a signed
-// contribution to the attacker's effective score against a specific opponent.
-// Rules are intentionally readable and can be expanded later.
-
-import type { Character, MatchupFactor, Stats } from "./types";
-
-// Base weight per stat for a generic matchup. These sum to a stable scale.
-const BASE_WEIGHTS: Record<keyof Stats, number> = {
-  strength: 1.0,
-  speed: 0.9,
-  durability: 1.1,
-  battleIQ: 0.8,
-  combatSkill: 0.9,
-  range: 0.7,
-  technology: 0.6,
-  magic: 0.7,
-  mentalResistance: 0.6,
-  healing: 0.5,
-  battlefieldControl: 0.7,
-  stamina: 0.6,
-};
-
-const norm = (v: number) => (v - 50) / 50; // -1..1 around average
-
-interface Contribution {
-  label: string;
-  value: number; // signed contribution to attacker
-  detail: string;
-}
-
 /**
- * Compute contributions from ATTACKER's perspective vs DEFENDER.
- * Positive values favor attacker.
+ * Deterministic pre-fight explanation layer for Engine v3.
+ *
+ * These factors explain why the action simulator tends to favor one side. They
+ * do not select the winner; aggregate probabilities come from actual combat
+ * runs in engine.ts.
  */
-export function computeContributions(
-  attacker: Character,
-  defender: Character,
-): Contribution[] {
-  const out: Contribution[] = [];
-  const aStats = attacker.stats;
-  const dStats = defender.stats;
 
-  // 1) Base stat weighting — every stat contributes at its base weight.
-  for (const key of Object.keys(BASE_WEIGHTS) as (keyof Stats)[]) {
-    const w = BASE_WEIGHTS[key];
-    const contrib = w * norm(aStats[key]);
-    out.push({
-      label: `Base:${key}`,
-      value: contrib,
-      detail: `${attacker.name}'s ${key} (${aStats[key]})`,
-    });
-  }
+import { actionEnvironmentMultiplier, getArena, getEnvironmentEffects } from "./arenas";
+import type { BattleContext, Character, CombatAction, MatchupFactor } from "./types";
 
-  // 2) High technology exploits mechanical/tech opponents.
-  if (
-    aStats.technology >= 70 &&
-    (defender.weaknesses.includes("mechanical") ||
-      defender.weaknesses.includes("life-support-armor") ||
-      defender.abilities.includes("armor"))
-  ) {
-    const v = (aStats.technology - 60) / 50;
-    out.push({
-      label: "Tech exploit vs gear",
-      value: v,
-      detail: `${attacker.name}'s technology exploits ${defender.name}'s equipment.`,
-    });
-  }
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-  // 3) Mental resistance blunts telekinesis / mind-control.
-  if (
-    (defender.abilities.includes("telekinesis") ||
-      defender.abilities.includes("mind-control")) &&
-    aStats.mentalResistance >= 60
-  ) {
-    const v = (aStats.mentalResistance - 50) / 60;
-    out.push({
-      label: "Mind-shield holds",
-      value: v,
-      detail: `${attacker.name} resists ${defender.name}'s mental attacks.`,
-    });
+function bestOffense(attacker: Character, defender: Character, context: BattleContext) {
+  let best = 0;
+  let bestAction: CombatAction | undefined;
+  const effects = getEnvironmentEffects(attacker, context);
+  for (const action of attacker.actions) {
+    if (action.power <= 0 && !action.control && !action.systemDamage) continue;
+    const resistance = defender.defense.resistances[action.damageType] ?? 0;
+    const scaleGap = Math.max(0, defender.scale - attacker.scale - (action.scalePiercing ?? 0));
+    const scale = Math.pow(0.3, scaleGap);
+    const system = defender.defense.criticalSystems ? (action.systemDamage ?? 0) * 0.8 : 0;
+    const environment =
+      effects.damageMultiplier * actionEnvironmentMultiplier(action, attacker, context);
+    const value =
+      (action.power *
+        (1 - resistance) *
+        (0.5 + (action.penetration ?? 0)) *
+        scale +
+        (action.control ?? 0) * (1 - defender.defense.controlResistance / 115) * scale +
+        system) *
+      environment;
+    if (value > best) {
+      best = value;
+      bestAction = action;
+    }
   }
-  if (
-    (aStats.magic >= 60 || attacker.abilities.includes("telekinesis")) &&
-    dStats.mentalResistance < 60
-  ) {
-    const v = (60 - dStats.mentalResistance) / 80;
-    out.push({
-      label: "Mind attack lands",
-      value: v,
-      detail: `${defender.name}'s mental resistance is thin.`,
-    });
-  }
-
-  // 4) Magic bypasses conventional durability.
-  if (aStats.magic >= 60 && defender.resistances.includes("conventional")) {
-    const v = (aStats.magic - 50) / 80;
-    out.push({
-      label: "Magic bypasses armor",
-      value: v,
-      detail: `${defender.name}'s conventional durability doesn't apply.`,
-    });
-  }
-
-  // 5) Speed → evasion & initiative.
-  const speedGap = norm(aStats.speed) - norm(dStats.speed);
-  if (Math.abs(speedGap) > 0.15) {
-    out.push({
-      label: "Speed advantage",
-      value: speedGap * 0.6,
-      detail:
-        speedGap > 0
-          ? `${attacker.name} dictates initiative.`
-          : `${defender.name} out-paces the opening.`,
-    });
-  }
-
-  // 6) Battlefield control improves range management.
-  if (aStats.battlefieldControl >= 70 && aStats.range >= 60) {
-    const v = ((aStats.battlefieldControl - 60) / 100) * (aStats.range / 100);
-    out.push({
-      label: "Kites at range",
-      value: v,
-      detail: `${attacker.name} controls the arena and picks the distance.`,
-    });
-  }
-
-  // 7) Healing + stamina → attritional advantage.
-  const attrition =
-    (aStats.healing + aStats.stamina - dStats.healing - dStats.stamina) / 220;
-  if (Math.abs(attrition) > 0.05) {
-    out.push({
-      label: "Attrition edge",
-      value: attrition * 0.8,
-      detail:
-        attrition > 0
-          ? `${attacker.name} outlasts the exchange.`
-          : `${defender.name} outlasts the exchange.`,
-    });
-  }
-
-  // 8) Battle IQ improves weakness exploitation.
-  if (aStats.battleIQ >= 70 && defender.weaknesses.length > 0) {
-    const v = ((aStats.battleIQ - 60) / 100) * defender.weaknesses.length * 0.15;
-    out.push({
-      label: "Finds the weakness",
-      value: v,
-      detail: `${attacker.name} reads ${defender.name}'s tell.`,
-    });
-  }
-
-  // 9) Extreme strength matters if attacker can close.
-  if (aStats.strength >= 85) {
-    const closeAbility =
-      (aStats.speed + aStats.battlefieldControl) / 200; // 0..1
-    const v = ((aStats.strength - 70) / 60) * closeAbility;
-    out.push({
-      label: "Strength on contact",
-      value: v,
-      detail: `${attacker.name} devastates once inside.`,
-    });
-  }
-
-  // 10) Range vs low-mobility opponents.
-  if (aStats.range >= 70 && dStats.speed < 55) {
-    const v = ((aStats.range - 60) / 100) * ((60 - dStats.speed) / 100);
-    out.push({
-      label: "Kites the slow",
-      value: v,
-      detail: `${defender.name} cannot close on ${attacker.name}.`,
-    });
-  }
-
-  return out;
+  return { value: best, action: bestAction };
 }
 
-export interface SidedScore {
-  score: number;
-  factors: MatchupFactor[]; // sided already
-}
-
-export function scoreSides(a: Character, b: Character): {
-  a: SidedScore;
-  b: SidedScore;
-} {
-  const aC = computeContributions(a, b);
-  const bC = computeContributions(b, a);
+function factor(
+  label: string,
+  delta: number,
+  detailA: string,
+  detailB: string,
+  scale = 1,
+): MatchupFactor | null {
+  if (Math.abs(delta) < 0.06) return null;
   return {
-    a: {
-      score: aC.reduce((s, c) => s + c.value, 0),
-      factors: aC.map((c) => ({
-        label: c.label,
-        favors: c.value === 0 ? "EVEN" : "A",
-        weight: Math.abs(c.value),
-        detail: c.detail,
-      })),
-    },
-    b: {
-      score: bC.reduce((s, c) => s + c.value, 0),
-      factors: bC.map((c) => ({
-        label: c.label,
-        favors: c.value === 0 ? "EVEN" : "B",
-        weight: Math.abs(c.value),
-        detail: c.detail,
-      })),
-    },
+    label,
+    favors: delta > 0 ? "A" : "B",
+    weight: clamp(Math.abs(delta) * scale, 0.05, 1.5),
+    detail: delta > 0 ? detailA : detailB,
   };
+}
+
+export function buildMatchupFactors(
+  a: Character,
+  b: Character,
+  context: BattleContext,
+): MatchupFactor[] {
+  const factors: Array<MatchupFactor | null> = [];
+  const arena = getArena(context.arenaId);
+  const effectsA = getEnvironmentEffects(a, context);
+  const effectsB = getEnvironmentEffects(b, context);
+  const offenseA = bestOffense(a, b, context);
+  const offenseB = bestOffense(b, a, context);
+
+  factors.push(
+    factor(
+      "Valid finishing offense",
+      (offenseA.value - offenseB.value) / 120,
+      `${a.name}'s ${offenseA.action?.name ?? "best route"} can create a credible finish against ${b.name}'s defenses.`,
+      `${b.name}'s ${offenseB.action?.name ?? "best route"} can create a credible finish against ${a.name}'s defenses.`,
+      1.25,
+    ),
+  );
+
+  const scaleDelta = (a.scale - b.scale) / 3;
+  factors.push(
+    factor(
+      "Scale and damage feasibility",
+      scaleDelta,
+      `${a.name}'s scale makes ordinary attacks from ${b.name} materially less effective.`,
+      `${b.name}'s scale makes ordinary attacks from ${a.name} materially less effective.`,
+      1.1,
+    ),
+  );
+
+  const initiativeA =
+    (a.stats.speed + (effectsA.statBonuses.speed ?? 0)) * 0.58 +
+    (a.stats.battleIQ + (effectsA.statBonuses.battleIQ ?? 0)) * 0.22 +
+    a.defense.evasion * 0.2 +
+    effectsA.initiativeBonus;
+  const initiativeB =
+    (b.stats.speed + (effectsB.statBonuses.speed ?? 0)) * 0.58 +
+    (b.stats.battleIQ + (effectsB.statBonuses.battleIQ ?? 0)) * 0.22 +
+    b.defense.evasion * 0.2 +
+    effectsB.initiativeBonus;
+  factors.push(
+    factor(
+      "Initiative and evasion",
+      (initiativeA - initiativeB) / 90,
+      `${a.name} is more likely to dictate the first meaningful exchange.`,
+      `${b.name} is more likely to dictate the first meaningful exchange.`,
+      0.8,
+    ),
+  );
+
+  const sustainA =
+    a.stats.durability * 0.45 +
+    a.stats.healing * 0.32 * effectsA.healingMultiplier +
+    a.stats.stamina * 0.23 * effectsA.staminaRecoveryMultiplier -
+    effectsA.attritionPerRound * 4;
+  const sustainB =
+    b.stats.durability * 0.45 +
+    b.stats.healing * 0.32 * effectsB.healingMultiplier +
+    b.stats.stamina * 0.23 * effectsB.staminaRecoveryMultiplier -
+    effectsB.attritionPerRound * 4;
+  factors.push(
+    factor(
+      "Sustained combat",
+      (sustainA - sustainB) / 80,
+      `${a.name} can absorb and recover from more failed exchanges in these conditions.`,
+      `${b.name} can absorb and recover from more failed exchanges in these conditions.`,
+      0.9,
+    ),
+  );
+
+  const rangeA =
+    (a.stats.range + (effectsA.statBonuses.range ?? 0)) * 0.55 +
+    (a.stats.battlefieldControl + (effectsA.statBonuses.battlefieldControl ?? 0)) * 0.45;
+  const rangeB =
+    (b.stats.range + (effectsB.statBonuses.range ?? 0)) * 0.55 +
+    (b.stats.battlefieldControl + (effectsB.statBonuses.battlefieldControl ?? 0)) * 0.45;
+  factors.push(
+    factor(
+      "Range control",
+      (rangeA - rangeB) / 95,
+      `${a.name} has the stronger tools for choosing where the fight occurs.`,
+      `${b.name} has the stronger tools for choosing where the fight occurs.`,
+      0.8,
+    ),
+  );
+
+  const environmentDelta =
+    effectsA.affinityScore -
+    effectsB.affinityScore +
+    (effectsA.homeAdvantage ? 2.2 : 0) -
+    (effectsB.homeAdvantage ? 2.2 : 0) +
+    (effectsB.attritionPerRound - effectsA.attritionPerRound) * 0.35;
+  factors.push(
+    factor(
+      `${arena.shortName} environment`,
+      environmentDelta / 4,
+      `${a.name} receives the stronger location/time interaction: ${effectsA.labels[0] ?? "better environmental fit"}.`,
+      `${b.name} receives the stronger location/time interaction: ${effectsB.labels[0] ?? "better environmental fit"}.`,
+      1.15,
+    ),
+  );
+
+  const systemsA = b.defense.criticalSystems
+    ? Math.max(...a.actions.map((x) => x.systemDamage ?? 0), 0)
+    : 0;
+  const systemsB = a.defense.criticalSystems
+    ? Math.max(...b.actions.map((x) => x.systemDamage ?? 0), 0)
+    : 0;
+  factors.push(
+    factor(
+      "Critical-system exploit",
+      (systemsA - systemsB) / 70,
+      `${a.name} has a direct route into ${b.name}'s critical systems.`,
+      `${b.name} has a direct route into ${a.name}'s critical systems.`,
+      1,
+    ),
+  );
+
+  const controlA =
+    Math.max(...a.actions.map((x) => x.control ?? 0), 0) *
+    (1 - b.defense.controlResistance / 120) *
+    effectsA.controlMultiplier;
+  const controlB =
+    Math.max(...b.actions.map((x) => x.control ?? 0), 0) *
+    (1 - a.defense.controlResistance / 120) *
+    effectsB.controlMultiplier;
+  factors.push(
+    factor(
+      "Control and containment",
+      (controlA - controlB) / 65,
+      `${a.name} has the more plausible route to restraining or containing ${b.name}.`,
+      `${b.name} has the more plausible route to restraining or containing ${a.name}.`,
+      0.95,
+    ),
+  );
+
+  const tacticsA = a.stats.battleIQ * 0.58 + a.stats.combatSkill * 0.42;
+  const tacticsB = b.stats.battleIQ * 0.58 + b.stats.combatSkill * 0.42;
+  factors.push(
+    factor(
+      "Tactical conversion",
+      (tacticsA - tacticsB) / 100,
+      `${a.name} is more likely to recognize and convert a narrow opening.`,
+      `${b.name} is more likely to recognize and convert a narrow opening.`,
+      0.7,
+    ),
+  );
+
+  return factors
+    .filter((x): x is MatchupFactor => Boolean(x))
+    .sort((x, y) => y.weight - x.weight)
+    .slice(0, 5);
+}
+
+export function preflightRating(
+  character: Character,
+  opponent: Character,
+  context: BattleContext,
+): number {
+  const effects = getEnvironmentEffects(character, context);
+  const offense = bestOffense(character, opponent, context).value;
+  const sustain =
+    character.stats.durability * 0.38 +
+    character.stats.healing * 0.24 * effects.healingMultiplier +
+    character.stats.stamina * 0.18 * effects.staminaRecoveryMultiplier -
+    effects.attritionPerRound * 4;
+  const tactics =
+    (character.stats.battleIQ + (effects.statBonuses.battleIQ ?? 0)) * 0.12 +
+    (character.stats.combatSkill + (effects.statBonuses.combatSkill ?? 0)) * 0.08;
+  return offense + sustain + tactics + character.scale * 8 + effects.affinityScore * 3;
 }

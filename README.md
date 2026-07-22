@@ -1,24 +1,38 @@
-# Welcome to your Lovable project
+# Fantasy Battles / Who Would Win Prototype
 
-This project was built with [Lovable](https://lovable.dev).
+A Lovable-compatible React and TypeScript prototype for a transparent fictional battle simulator.
 
-## Build with Lovable
+## Engine v3
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+The simulator resolves fights action by action and derives both the long-run probability and individual replay from the same rules. V3 adds:
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
+- Arena, universe, galaxy/realm and terrain context
+- Time-of-day effects
+- Atmosphere, gravity, visibility and environmental survival
+- Character home-territory and terrain affinities
+- Active combat time and total elapsed fight time
+- Rare pursuit and long-stalemate outcomes for future record leaderboards
+- Deterministic seeds for exact replay
 
-## Development
+See `ENGINE_V3.md` for the engine design.
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Local development
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm install
 npm run dev
+```
+
+Focused engine validation:
+
+```sh
+npm run typecheck:engine
+```
+
+Browser test panel:
+
+```text
+/app/engine-test
 ```
 
 ## Built with
@@ -27,3 +41,8 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+- Lovable-compatible GitHub sync
+
+## Current boundary
+
+All simulations are client-side and unverified. Official trophies, rare-victory collectibles and fastest/longest leaderboards must later be issued by a server-authoritative system.
