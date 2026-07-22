@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { z } from "zod";
 import { CharacterCard } from "@/components/wwr/CharacterCard";
-import { StatBar } from "@/components/wwr/StatBar";
+import { SecondaryStat, StatBar } from "@/components/wwr/StatBar";
 import {
   DISTANCE_OPTIONS,
   contextSummary,
@@ -12,7 +12,8 @@ import {
 import { getCharacter } from "@/lib/simulation/characters";
 import { analyzeMatchup } from "@/lib/simulation/engine";
 import { randomSeed } from "@/lib/simulation/rng";
-import type { RangeBand, StatKey, TimeOfDay } from "@/lib/simulation/types";
+import { rankStatImpact } from "@/lib/simulation/stat-impact";
+import type { RangeBand, TimeOfDay } from "@/lib/simulation/types";
 
 const searchSchema = z.object({
   a: z.string(),
@@ -26,21 +27,6 @@ export const Route = createFileRoute("/app/matchup")({
   validateSearch: (s) => searchSchema.parse(s),
   component: Matchup,
 });
-
-const STAT_ORDER: StatKey[] = [
-  "strength",
-  "speed",
-  "durability",
-  "battleIQ",
-  "combatSkill",
-  "range",
-  "technology",
-  "magic",
-  "mentalResistance",
-  "healing",
-  "battlefieldControl",
-  "stamina",
-];
 
 function Matchup() {
   const { a: aId, b: bId, arena: arenaId, time, distance } = Route.useSearch();
@@ -61,6 +47,7 @@ function Matchup() {
     () => (a && b ? analyzeMatchup(a, b, { context }) : null),
     [a, b, context],
   );
+  const statImpact = useMemo(() => (a && b ? rankStatImpact(a, b, context) : []), [a, b, context]);
 
   if (!a || !b || !analysis) {
     return (
@@ -88,7 +75,10 @@ function Matchup() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <Link to="/app" className="text-xs uppercase tracking-widest text-white/50 hover:text-white">
+        <Link
+          to="/app"
+          className="text-xs uppercase tracking-widest text-white/50 hover:text-white"
+        >
           ← Change matchup
         </Link>
         <div className="text-xs uppercase tracking-widest text-white/40">Pre-battle analysis</div>
@@ -159,32 +149,73 @@ function Matchup() {
         </button>
       </div>
 
-      <section className="rounded-xl border border-white/10 bg-white/[0.02] p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/60">
-            Base stat comparison
-          </h3>
-          <div className="flex gap-4 text-xs">
-            <span style={{ color: a.accent }}>{a.name}</span>
-            <span className="text-white/30">vs</span>
-            <span style={{ color: b.accent }}>{b.name}</span>
+      <section className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.02]">
+        <div className="border-b border-white/[0.07] bg-gradient-to-r from-white/[0.025] via-transparent to-white/[0.025] px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="font-display text-sm uppercase tracking-[0.3em] text-white/70">
+                Matchup stat impact
+              </h3>
+              <p className="mt-1 text-xs text-white/40">
+                Ranked by how likely each stat is to decide this exact fight.
+              </p>
+            </div>
+            <div className="flex gap-4 text-xs">
+              <span style={{ color: a.accent }}>{a.name}</span>
+              <span className="text-white/30">vs</span>
+              <span style={{ color: b.accent }}>{b.name}</span>
+            </div>
           </div>
         </div>
-        <div>
-          {STAT_ORDER.map((key) => (
-            <StatBar
-              key={key}
-              label={key}
-              a={a.stats[key]}
-              b={b.stats[key]}
-              accentA={a.accent}
-              accentB={b.accent}
-            />
-          ))}
-        </div>
-        <div className="mt-4 text-xs text-white/35">
-          Context bonuses and penalties are applied inside the simulation and explained in the
-          matchup factors below.
+
+        <div className="p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-[0.6rem] uppercase tracking-[0.24em] text-amber-200/65">
+              Deciding stats
+            </div>
+            <div className="text-[0.58rem] uppercase tracking-wider text-white/25">
+              Context-adjusted values
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {statImpact.slice(0, 5).map((impact, index) => (
+              <StatBar
+                key={impact.key}
+                impact={impact}
+                rank={index + 1}
+                nameA={a.name}
+                nameB={b.name}
+                accentA={a.accent}
+                accentB={b.accent}
+              />
+            ))}
+          </div>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/[0.07]" />
+            <div className="text-[0.58rem] uppercase tracking-[0.22em] text-white/25">
+              Lower-impact stats
+            </div>
+            <div className="h-px flex-1 bg-white/[0.07]" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {statImpact.slice(5).map((impact) => (
+              <SecondaryStat
+                key={impact.key}
+                impact={impact}
+                nameA={a.name}
+                nameB={b.name}
+                accentA={a.accent}
+                accentB={b.accent}
+              />
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-lg border border-[#7ea6ff]/10 bg-[#7ea6ff]/[0.045] px-4 py-3 text-xs leading-relaxed text-white/40">
+            Importance changes with the fighters, their usable attacks, the arena, time of day and
+            starting distance. Stars measure matchup relevance; the center meter shows who owns the
+            actual edge.
+          </div>
         </div>
       </section>
 
