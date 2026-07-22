@@ -10,7 +10,10 @@ export default defineConfig({
   vite: {
     // Use a fresh module graph for the recovery branch. This prevents Lovable's preview
     // from hydrating current SSR HTML with a stale client-side route module.
-    cacheDir: "node_modules/.vite-lovable-v3-20260721",
+    // Bump this whenever Lovable's preview hydrates a newly rendered route with
+    // an older client bundle. The hierarchy redesign changes the component
+    // shape substantially, so it needs a fresh client module graph.
+    cacheDir: "node_modules/.vite-lovable-v3-hierarchy-20260721",
     optimizeDeps: {
       force: true,
     },
